@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>蓝调勘景仪</title>
+<meta name="description" content="蓝调时刻拍摄勘景工具：地平线遮挡剖面、分钟级光线时间轴、云量决策">
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#07070a">
+<meta name="color-scheme" content="dark">
+
+<!-- iOS 添加到主屏幕 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="蓝调勘景">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar" id="topbar"></header>
+  <main class="view" id="view"></main>
+  <nav class="dock" id="dock" style="display:none"></nav>
+</div>
+
+<!-- 核心：纯计算，无 DOM 依赖 -->
+<script src="js/core/solar.js"></script>
+<script src="js/core/tz.js"></script>
+<script src="js/core/horizon.js"></script>
+<!-- 数据层 -->
+<script src="js/data/db.js"></script>
+<script src="js/data/records.js"></script>
+<!-- 界面层 -->
+<script src="js/ui/app.js"></script>
+<script src="js/ui/compass.js"></script>
+<script src="js/ui/horizon-ui.js"></script>
+<script src="js/ui/scout.js"></script>
+<!-- 开发用：只在网址带 ?sim=1 时启用 -->
+<script src="js/ui/compass-sim.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  // 启动阶段出任何错都要显示出来。黑屏最难排查，尤其在现场。
+  function showBootError(what) {
+    var v = document.getElementById('view');
+    if (!v || v.querySelector('.boot-error')) { return; }
+    var d = document.createElement('div');
+    d.className = 'note bad boot-error';
+    d.textContent = '出错了：' + what;
+    v.insertBefore(d, v.firstChild);
+  }
+  window.addEventListener('error', function (e) {
+    showBootError(e.message || String(e.error) || '未知错误');
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason;
+    showBootError((r && r.message) ? r.message : String(r));
+  });
+
+  var A = BH.App;
+
+  A.route('/', BH.Scout.renderList);
+  A.route('/rec/:id', BH.Scout.renderDetail);
+  A.route('/rec/:id/horizon', BH.Scout.renderHorizon);
+
+  A.start({
+    topbar: document.getElementById('topbar'),
+    view: document.getElementById('view'),
+    dock: document.getElementById('dock')
+  });
+
+  // 电脑上没有磁力计，?sim=1 时用模拟器验采样交互
+  BH.CompassSim.activate();
+
+  // 存储不可用时要明说，不能让用户以为存进去了
+  BH.DB.probe().then(function (res) {
+    if (res.ok) { return; }
+    var v = document.getElementById('view');
+    v.insertBefore(A.h('div', { class: 'note bad' }, [
+      A.h('b', { text: '本机存储不可用：' }), res.error,
+      A.h('br'),
+      '如果在 Safari 的无痕模式下，请换成普通窗口。记录暂时无法保存。'
+    ]), v.firstChild);
+  });
+
+  // Service Worker：断网时除天气外全部功能可用。
+  // 缓存策略是"先给缓存、后台更新"，所以推了新版本后这一次打开拿到的还是旧的。
+  // 装好新版本就提示一下，否则用户会一直停在旧代码上还不知道。
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', function () {
+      var reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (reloading) { return; }
+        reloading = true;
+        location.reload();
+      });
+
+      navigator.serviceWorker.register('sw.js').then(function (reg) {
+        reg.addEventListener('updatefound', function () {
+          var sw = reg.installing;
+          if (!sw) { return; }
+          sw.addEventListener('statechange', function () {
+            if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+              showUpdateBar(sw);
+            }
+          });
+        });
+      }).catch(function () {
+        // 注册失败不影响在线使用，静默即可
+      });
+    });
+  }
+
+  function showUpdateBar(sw) {
+    if (document.getElementById('update-bar')) { return; }
+    var bar = A.h('div', {
+      id: 'update-bar',
+      style: 'position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 78px);' +
+             'z-index:80;display:flex;gap:10px;align-items:center;' +
+             'background:#1c1c24;border:1px solid #3a2f18;border-radius:11px;' +
+             'padding:11px 13px;box-shadow:0 8px 28px rgba(0,0,0,.6)'
+    }, [
+      A.h('span', { style: 'flex:1;font-size:13px;color:#9a9184', text: '有新版本' }),
+      A.h('button', {
+        class: 'btn sm ghost', type: 'button',
+        on: { click: function () { bar.remove(); } }
+      }, '稍后'),
+      A.h('button', {
+        class: 'btn sm primary', type: 'button',
+        on: { click: function () { sw.postMessage('skipWaiting'); } }
+      }, '刷新')
+    ]);
+    document.body.appendChild(bar);
+  }
+}());
+</script>
+</body>
+</html>

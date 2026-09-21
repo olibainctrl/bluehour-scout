@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>蓝调勘景仪 — 算法测试</title>
+<style>
+:root{
+  --bg:#07070a; --bg-raise:#0f0f14; --bg-row:#121218;
+  --ink:#e6dccb; --ink-dim:#9a9184; --ink-faint:#6b6459;
+  --amber:#ffb340; --amber-dim:#c98a2f;
+  --pass:#7fb069; --fail:#e0533d;
+  --line:#22222b;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink)}
+body{
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Helvetica Neue","PingFang SC",sans-serif;
+  padding:16px 16px calc(40px + env(safe-area-inset-bottom));
+  max-width:900px;margin:0 auto;-webkit-text-size-adjust:100%;
+}
+h1{font-size:19px;font-weight:600;margin:0 0 2px;letter-spacing:.02em}
+.sub{color:var(--ink-faint);font-size:12px;margin:0 0 18px;line-height:1.6}
+.sub a{color:var(--amber-dim);text-decoration:none;border-bottom:1px solid #3a2f18}
+
+/* 顶部汇总 */
+.summary{
+  border:1px solid var(--line);border-radius:12px;background:var(--bg-raise);
+  padding:16px 18px;margin-bottom:8px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+}
+.summary .big{font:600 40px/1 var(--mono);letter-spacing:-.02em}
+.summary.ok .big{color:var(--pass)}
+.summary.bad .big{color:var(--fail)}
+.summary .label{font-size:13px;color:var(--ink-dim)}
+.summary .ms{margin-left:auto;font:12px/1 var(--mono);color:var(--ink-faint)}
+
+button{
+  font:inherit;font-size:13px;background:transparent;color:var(--amber);
+  border:1px solid #3a2f18;border-radius:8px;padding:7px 14px;cursor:pointer;
+}
+button:active{background:#1a1408}
+.bar{display:flex;gap:8px;margin:12px 0 22px;align-items:center;flex-wrap:wrap}
+.bar .hint{font-size:12px;color:var(--ink-faint)}
+
+/* 套件 */
+.suite{border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden;background:var(--bg-raise)}
+.suite > summary{
+  padding:12px 14px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;
+  font-size:14px;font-weight:500;
+}
+.suite > summary::-webkit-details-marker{display:none}
+.suite > summary::before{content:"▸";color:var(--ink-faint);font-size:11px;width:10px;flex:none}
+.suite[open] > summary::before{content:"▾"}
+.tag{font:600 10px/1 var(--mono);padding:4px 7px;border-radius:5px;letter-spacing:.06em;flex:none}
+.tag.ok{color:var(--pass);background:#14200f;border:1px solid #23341a}
+.tag.bad{color:var(--fail);background:#241110;border:1px solid #3d1c18}
+.count{margin-left:auto;font:12px/1 var(--mono);color:var(--ink-faint);flex:none}
+.suite-body{padding:0 14px 14px;border-top:1px solid var(--line)}
+
+/* 单条测试 */
+.tcase{margin-top:14px}
+.tname{font-size:13px;color:var(--ink-dim);display:flex;gap:8px;align-items:baseline}
+.tname .mark{font:600 12px/1 var(--mono);flex:none}
+.tname .mark.ok{color:var(--pass)} .tname .mark.bad{color:var(--fail)}
+
+table{width:100%;border-collapse:collapse;margin-top:8px;font:12px/1.45 var(--mono)}
+td{padding:5px 8px;border-bottom:1px solid #191920;color:var(--ink-dim);white-space:nowrap}
+tr td:first-child{color:var(--ink)}
+tr:last-child td{border-bottom:none}
+td.v{color:var(--amber-dim)}
+td.ok{color:var(--pass)} td.bad{color:var(--fail)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+.fail-list{margin:8px 0 0;padding:10px 12px;border-radius:8px;background:#1a0f0e;border:1px solid #331714}
+.fail-list div{font:12px/1.6 var(--mono);color:#f0a396}
+.err{font:11px/1.5 var(--mono);color:var(--fail);white-space:pre-wrap;margin-top:6px}
+.notes{font-size:12px;line-height:1.7;color:var(--ink-faint);margin-top:26px;border-top:1px solid var(--line);padding-top:16px}
+.notes code{color:var(--amber-dim);font-family:var(--mono);font-size:11px}
+</style>
+</head>
+<body>
+
+<h1>蓝调勘景仪 · 算法测试</h1>
+<p class="sub">
+  太阳位置（NOAA 算法本地实现）、时区工具、地平线遮挡剖面、罗盘瞄准几何与界面几何约束的单元测试。全部本地计算，不联网。<br>
+  主基准 <a href="https://gml.noaa.gov/grad/solcalc/" target="_blank" rel="noopener">NOAA Solar Calculator</a>，容差 ±60 秒 ·
+  交叉参考 <a href="https://geodesyapps.ga.gov.au/sunrise" target="_blank" rel="noopener">Geoscience Australia</a>，容差 ±120 秒
+</p>
+
+<div id="summary" class="summary"><span class="big">…</span><span class="label">正在运行</span></div>
+<div class="bar">
+  <button id="rerun" type="button">重新运行</button>
+  <button id="toggle" type="button">展开全部</button>
+  <span class="hint">点击套件标题可展开逐条比对</span>
+</div>
+
+<div id="out"></div>
+
+<div class="notes">
+  <strong style="color:var(--ink-dim)">几条固化在测试里的结论</strong><br>
+  · 16 个日期的日出日落，四舍五入到分钟后与 NOAA 公布值<strong>逐一相同</strong>，不只是落在容差内。<br>
+  · 太阳正午残差 ≤14 秒。NOAA 那一列的时差只迭代一趟、取值时刻偏早约半天，在时差变化最快的十二月底会差十几秒；本实现迭代到收敛。<br>
+  · NOAA 自身有一处不自洽：日出日落用的 <code>90.833°</code> 天顶角隐含地平折射 34′（0.567°），而 <code>calcRefraction()</code> 在地平线只给 0.482°。
+  所以日落那一刻的视高度角是 <code>−0.436°</code> 而不是 <code>0.000°</code>，界面上不要当成 0 度。<br>
+  · GA 用的是精度更高的另一套算法，与 NOAA 之间本来就差几十秒（例如 2026-06-21 日落 GA 16:53 / NOAA 16:54），所以只作旁证。
+</div>
+
+<script src="js/core/solar.js"></script>
+<script src="js/core/tz.js"></script>
+<script src="js/core/horizon.js"></script>
+<script src="js/ui/compass.js"></script>
+<script src="js/ui/app.js"></script>
+<script src="js/ui/horizon-ui.js"></script>
+<script src="js/test/harness.js"></script>
+<script src="js/test/solar.test.js"></script>
+<script src="js/test/horizon.test.js"></script>
+<script src="js/test/compass.test.js"></script>
+<script src="js/test/ui-geometry.test.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) { n.className = cls; }
+    if (text !== undefined) { n.textContent = text; }
+    return n;
+  }
+
+  function render() {
+    var t0 = (performance && performance.now) ? performance.now() : Date.now();
+    var result = BH.Test.run();
+    var t1 = (performance && performance.now) ? performance.now() : Date.now();
+
+    var sum = document.getElementById('summary');
+    sum.className = 'summary ' + (result.failed === 0 ? 'ok' : 'bad');
+    sum.textContent = '';
+    sum.appendChild(el('span', 'big', result.failed === 0 ? String(result.passed) : String(result.failed)));
+    sum.appendChild(el('span', 'label',
+      result.failed === 0
+        ? '条断言全部通过 · ' + result.suites.length + ' 个套件'
+        : '条断言失败，共 ' + result.total + ' 条'));
+    sum.appendChild(el('span', 'ms', Math.round(t1 - t0) + ' ms'));
+
+    var out = document.getElementById('out');
+    out.textContent = '';
+
+    result.suites.forEach(function (s) {
+      var d = el('details', 'suite');
+      if (s.failed) { d.open = true; }
+      var head = el('summary');
+      head.appendChild(el('span', 'tag ' + (s.failed ? 'bad' : 'ok'), s.failed ? 'FAIL' : 'PASS'));
+      head.appendChild(el('span', null, s.name));
+      head.appendChild(el('span', 'count', s.passed + '/' + (s.passed + s.failed)));
+      d.appendChild(head);
+
+      var body = el('div', 'suite-body');
+      s.tests.forEach(function (t) {
+        var bad = t.failed || t.error;
+        var c = el('div', 'tcase');
+        var nm = el('div', 'tname');
+        nm.appendChild(el('span', 'mark ' + (bad ? 'bad' : 'ok'), bad ? '✗' : '✓'));
+        nm.appendChild(el('span', null, t.name));
+        c.appendChild(nm);
+
+        if (t.rows.length) {
+          var wrap = el('div', 'scroll');
+          var tbl = el('table');
+          t.rows.forEach(function (cells) {
+            var tr = el('tr');
+            cells.forEach(function (v, i) {
+              var cls = i === 0 ? null : 'v';
+              if (v === '通过' || v === '一致') { cls = 'ok'; }
+              if (v === '失败' || v === '不一致') { cls = 'bad'; }
+              tr.appendChild(el('td', cls, String(v)));
+            });
+            tbl.appendChild(tr);
+          });
+          wrap.appendChild(tbl);
+          c.appendChild(wrap);
+        }
+
+        if (t.error) {
+          c.appendChild(el('div', 'err', t.error));
+        }
+        var fails = t.assertions.filter(function (a) { return !a.pass; });
+        if (fails.length) {
+          var fl = el('div', 'fail-list');
+          fails.forEach(function (a) {
+            fl.appendChild(el('div', null, '✗ ' + a.message + (a.detail ? ' — ' + a.detail : '')));
+          });
+          c.appendChild(fl);
+        }
+        body.appendChild(c);
+      });
+      d.appendChild(body);
+      out.appendChild(d);
+    });
+
+    if (typeof console !== 'undefined' && console.log) {
+      console.log(BH.Test.textReport(result));
+    }
+  }
+
+  document.getElementById('rerun').addEventListener('click', render);
+  document.getElementById('toggle').addEventListener('click', function () {
+    var all = document.querySelectorAll('details.suite');
+    var anyClosed = false;
+    for (var i = 0; i < all.length; i++) { if (!all[i].open) { anyClosed = true; } }
+    for (var j = 0; j < all.length; j++) { all[j].open = anyClosed; }
+    this.textContent = anyClosed ? '收起全部' : '展开全部';
+  });
+
+  render();
+}());
+</script>
+</body>
+</html>
