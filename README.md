@@ -333,7 +333,26 @@ cd "/Users/gongzihan/Iphone Tool" && python3 -c "import http.server,ssl;c=ssl.SS
 
 ---
 
-## 部署到 GitHub Pages
+## 已部署地址
+
+**https://olibainctrl.github.io/bluehour-scout/**
+
+仓库：https://github.com/olibainctrl/bluehour-scout （public，免费账户的 Pages
+只支持 public 仓库）。勘景记录和照片都存在手机本地的 IndexedDB 里，
+不会进仓库，所以公开的只有代码本身。
+
+日常迭代：
+
+```bash
+cd "/Users/gongzihan/Iphone Tool" && git add -A && git commit -m "改了什么" && git push
+```
+
+push 之后一两分钟自动重新发布。手机上刷新时如果还是旧版，
+底部会弹「有新版本 / 刷新」，点一下即可。
+
+---
+
+## 部署到 GitHub Pages（从零开始的话）
 
 仓库还没初始化 git，第一次这样做：
 
@@ -341,18 +360,25 @@ cd "/Users/gongzihan/Iphone Tool" && python3 -c "import http.server,ssl;c=ssl.SS
 cd "/Users/gongzihan/Iphone Tool" && git init && git add -A && git commit -m "蓝调勘景仪：太阳位置算法与单元测试"
 ```
 
-在 GitHub 上建一个仓库（可以是 private，Pages 对 private 仓库在付费计划下可用；
-免费计划请建 public），然后：
+在 GitHub 上建仓库并推送。**注意：免费账户的 Pages 只支持 public 仓库**，
+private 仓库开 Pages 会返回
+`Your current plan does not support GitHub Pages for this repository (HTTP 422)`。
+用 `gh` 的话一条命令就够：
 
 ```bash
-cd "/Users/gongzihan/Iphone Tool" && git remote add origin git@github.com:<你的用户名>/<仓库名>.git && git branch -M main && git push -u origin main
+cd "/Users/gongzihan/Iphone Tool" && gh repo create <仓库名> --public --source=. --remote=origin --push
 ```
 
-在仓库页面：**Settings → Pages → Source 选 "Deploy from a branch" →
-Branch 选 `main`、目录选 `/ (root)` → Save**。
+再开 Pages（也可以在仓库页面 **Settings → Pages → Source 选
+"Deploy from a branch" → Branch 选 `main`、目录 `/ (root)`**）：
 
-一两分钟后站点在 `https://<你的用户名>.github.io/<仓库名>/`。
-因为是子路径部署，项目里所有路径都用相对路径写，不用改配置。
+```bash
+gh api -X POST repos/<用户名>/<仓库名>/pages -f 'source[branch]=main' -f 'source[path]=/'
+```
+
+一两分钟后站点在 `https://<用户名>.github.io/<仓库名>/`。
+因为是子路径部署，项目里所有路径（包括 Service Worker 的缓存清单和
+manifest 的 `start_url`/`scope`）都写成相对路径，不用改任何配置。
 
 之后每次 `git push` 自动重新发布。
 
@@ -360,7 +386,8 @@ Branch 选 `main`、目录选 `/ (root)` → Save**。
 
 ## iPhone 添加到主屏幕
 
-1. 用 **Safari** 打开站点（必须是 Safari，Chrome 的「添加到主屏幕」不走 PWA 那一套）
+1. 用 **Safari** 打开 <https://olibainctrl.github.io/bluehour-scout/>
+   （必须是 Safari，Chrome 的「添加到主屏幕」不走 PWA 那一套）
 2. 点底部中间的**分享**按钮（方框带向上箭头）
 3. 下滑找到**「添加到主屏幕」**
 4. 改个名字，点**添加**
