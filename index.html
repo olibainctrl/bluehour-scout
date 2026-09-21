@@ -67,7 +67,8 @@
   var A = BH.App;
 
   A.route('/', BH.Scout.renderList);
-  A.route('/rec/:id', BH.Scout.renderDetail);
+  A.route('/rec/:id', BH.Scout.renderOverview);
+  A.route('/rec/:id/s/:step', BH.Scout.renderStep);
   A.route('/rec/:id/horizon', BH.Scout.renderHorizon);
 
   A.start({

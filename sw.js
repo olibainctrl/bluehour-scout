@@ -13,7 +13,7 @@
  */
 'use strict';
 
-var VERSION = 'v4';
+var VERSION = 'v5';
 var CACHE = 'bluehour-' + VERSION;
 
 var ASSETS = [

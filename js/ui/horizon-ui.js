@@ -315,9 +315,10 @@
    * 渲染采样页。
    * @param {Object} rec 勘景记录（会就地修改 rec.horizon 并自动存盘）
    * @param {HTMLElement} view 容器
+   * @param {Object} [opts] opts.dock 由调用方提供底部导航（分步流程用）
    * @returns {function} 清理函数
    */
-  function render(rec, view) {
+  function render(rec, view, opts) {
     deps();
 
     var profile = rec.horizon;
@@ -418,29 +419,28 @@
     view.appendChild(compassBox);
     view.appendChild(stripBox);
     view.appendChild(gridBox);
-    view.appendChild(A.h('p', { class: 'hint' }, [
-      A.h('strong', { text: '怎么用：' }),
-      '竖着举起手机，像拍照一样用背面对准天际线，然后原地缓慢转一圈。',
-      '在一个方向停住约半秒就会自动记下该方向的天际线仰角，罗盘图上对应的扇区会亮起来。',
-      '转完一圈 36 个扇区就齐了。采到的值会自动存盘。'
+    view.appendChild(A.h('details', { class: 'fold' }, [
+      A.h('summary', null, '怎么用'),
+      A.h('div', { class: 'fold-body' }, [
+        A.h('p', { class: 'hint' },
+          '竖着举起手机，像拍照一样用**背面**对准天际线，然后原地缓慢转一圈。'
+            .replace(/\*\*/g, '')),
+        A.h('p', { class: 'hint' },
+          '在一个方向停住约半秒就会自动记下该方向的天际线仰角，罗盘图上对应的扇区会亮起来。' +
+          '转得快一些也行，只要在每个扇区里停够一瞬间；转太快会提示你慢下来。'),
+        A.h('p', { class: 'hint' },
+          '转完一圈 36 个扇区就齐了。采到的值会自动存盘，中途退出不会丢。' +
+          '罗盘不可用时，下面的「逐扇区数值」可以逐格手填。')
+      ])
     ]));
 
-    A.setTop({
-      title: '地平线剖面',
-      sub: rec.name || '未命名',
-      back: true
-    });
-    A.setDock([
+    // 顶栏由调用方（分步流程）设置；底部导航优先用传进来的
+    A.setDock((opts && opts.dock) ? opts.dock : [
       A.h('button', {
-        class: 'btn ghost', type: 'button',
-        on: { click: function () { A.go('/rec/' + rec.id); } }
-      }, '返回记录'),
-      A.h('button', {
-        class: 'btn primary', type: 'button',
+        class: 'btn primary block', type: 'button',
         on: {
           click: function () {
             flushSave();
-            A.toast('剖面已保存');
             A.go('/rec/' + rec.id);
           }
         }
@@ -469,8 +469,7 @@
         setStatus('ok', '罗盘已启用' + acc + srcNote);
       } else if (st === 'idle') {
         slot.style.display = '';
-        setStatus('', 'iOS 需要你<b>主动点一下</b>才能打开方向传感器。点下面的按钮启用罗盘；' +
-                      '不想用罗盘也可以直接在下面的「逐扇区数值」里手动填。');
+        setStatus('', 'iOS 需要你<b>主动点一下</b>才能打开方向传感器。');
       } else {
         slot.style.display = st === 'denied' || st === 'nodata' ? '' : 'none';
         setStatus('bad', C.explain(st) + '<br>你仍然可以在下面的「逐扇区数值」里逐格手动输入。');
