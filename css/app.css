@@ -585,3 +585,52 @@ table.tl tr:active td{background:var(--bg-row)}
 .calib b{color:var(--ink);font-weight:600}
 .calib.on{border-color:#2a3d20;background:#101a0d}
 .calib.on b{color:var(--ok)}
+
+/* ------------------------------------------------------------ 七天云量 */
+
+.day-card{
+  border:1px solid var(--line);border-radius:14px;background:var(--bg-raise);
+  padding:14px;margin-bottom:10px;
+}
+.day-card.today{border-color:#4d3d1d}
+.day-card .head{display:flex;align-items:baseline;gap:10px;margin-bottom:3px}
+.day-card .d{font-size:17px;font-weight:600;color:var(--ink)}
+.day-card .w{font:12px/1 var(--mono);color:var(--ink-faint);flex:1}
+.day-card .win{font:13px/1.5 var(--mono);color:var(--ink-dim);margin-bottom:12px}
+
+/* 三层云各占一列，不合并 —— 低云是决定性的那一层，单独加重 */
+.cloud-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cloud-cols > div{
+  background:var(--bg-sunk);border:1px solid var(--line);border-radius:10px;
+  padding:9px 6px;text-align:center;
+}
+.cloud-cols .k{font-size:11px;color:var(--ink-faint);margin-bottom:4px}
+.cloud-cols .v{font:600 19px/1 var(--mono);color:var(--ink-dim);font-variant-numeric:tabular-nums}
+.cloud-cols .low .v{font-size:23px;color:var(--ink)}
+.cloud-cols .low{border-color:#2e2e3a}
+.day-card.good .cloud-cols .low .v{color:var(--ok)}
+.day-card.maybe .cloud-cols .low .v{color:var(--warn)}
+.day-card.bad .cloud-cols .low .v{color:var(--bad)}
+
+.day-card .meta2{
+  display:flex;gap:16px;margin-top:11px;font:12px/1.4 var(--mono);color:var(--ink-faint);flex-wrap:wrap;
+}
+.day-card .meta2 b{color:var(--ink-dim);font-weight:600}
+.day-card .note{
+  margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft);
+  font-size:12px;line-height:1.6;color:var(--amber-dim);
+}
+.day-card .partial{
+  margin-top:8px;font-size:12px;color:var(--ink-faint);line-height:1.6;
+}
+
+/* 数据来源状态条 */
+.src{
+  display:flex;align-items:center;gap:10px;
+  border:1px solid var(--line);border-radius:11px;background:var(--bg-raise);
+  padding:11px 13px;margin-bottom:14px;font-size:13px;color:var(--ink-dim);line-height:1.55;
+}
+.src.stale{border-left:2px solid var(--warn);border-radius:0 11px 11px 0}
+.src.err{border-left:2px solid var(--bad);border-radius:0 11px 11px 0;color:#e8b4a9}
+.src .txt{flex:1;min-width:0}
+.src b{color:var(--ink);font-weight:600}

@@ -445,6 +445,49 @@
       });
       view.appendChild(list);
 
+      // 两个计算工具单独一组：它们不是"填表的步骤"，是填完之后拿来用的
+      var canCompute = rec.lat !== null && rec.lon !== null;
+      var tools = A.h('div', { class: 'nav-list' }, [
+        A.h('button', {
+          class: 'nav-row', type: 'button',
+          on: {
+            click: function () {
+              if (!canCompute) { A.toast('先补上坐标'); return; }
+              ctx.flushSave().then(function () { A.go('/rec/' + rec.id + '/timeline'); });
+            }
+          }
+        }, [
+          A.h('span', { class: 'num', text: '☀' }),
+          A.h('span', { class: 'body' }, [
+            A.h('span', { class: 't', text: '光线时间轴' }),
+            A.h('span', { class: 's', text: canCompute
+              ? '逐分钟 EV、T 档、色温，以及被地平线挡住的真实日落'
+              : '需要先有坐标' })
+          ]),
+          A.h('span', { class: 'chev', text: '›' })
+        ]),
+        A.h('button', {
+          class: 'nav-row', type: 'button',
+          on: {
+            click: function () {
+              if (!canCompute) { A.toast('先补上坐标'); return; }
+              ctx.flushSave().then(function () { A.go('/rec/' + rec.id + '/weather'); });
+            }
+          }
+        }, [
+          A.h('span', { class: 'num', text: '☁' }),
+          A.h('span', { class: 'body' }, [
+            A.h('span', { class: 't', text: '七天云量' }),
+            A.h('span', { class: 's', text: canCompute
+              ? '未来七天低/中/高云与降水，判断哪天值得去'
+              : '需要先有坐标' })
+          ]),
+          A.h('span', { class: 'chev', text: '›' })
+        ])
+      ]);
+      view.appendChild(A.h('p', { class: 'section-title', text: '算给我看' }));
+      view.appendChild(tools);
+
       // 危险操作放在最底下，远离误触区（原来挂在右上角，和返回箭头一样显眼）
       view.appendChild(A.h('div', { class: 'danger-zone' }, [
         A.h('button', {
@@ -466,7 +509,6 @@
       ]));
 
       // 必填项齐了之后，主按钮就该是"拿去算光线"而不是"返回列表"
-      var canTimeline = rec.lat !== null && rec.lon !== null;
       A.setDock([
         todo.length
           ? A.h('button', {
@@ -479,13 +521,7 @@
             }, '光线时间轴 →')
       ]);
 
-      // 只要有坐标就能算（没剖面时只是给不出真实日落），单独给个入口
-      if (canTimeline && todo.length) {
-        view.insertBefore(A.h('button', {
-          class: 'btn block', type: 'button', style: 'margin-bottom:14px',
-          on: { click: function () { ctx.flushSave().then(function () { A.go('/rec/' + rec.id + '/timeline'); }); } }
-        }, '先看光线时间轴 →'), view.querySelector('.danger-zone'));
-      }
+
     });
   }
 

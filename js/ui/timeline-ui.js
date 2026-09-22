@@ -73,8 +73,8 @@
       A.setDock([
         A.h('button', {
           class: 'btn ghost', type: 'button', style: 'flex:0 0 40%',
-          on: { click: function () { A.go('/settings'); } }
-        }, '项目设置'),
+          on: { click: function () { A.go('/rec/' + rec.id + '/weather'); } }
+        }, '七天云量'),
         A.h('button', {
           class: 'btn primary', type: 'button',
           on: { click: function () { A.go('/rec/' + rec.id); } }
