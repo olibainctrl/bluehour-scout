@@ -24,16 +24,18 @@
 
   function render(params, view) {
     deps();
-    var s = null, saveTimer = null, dirty = false;
+    var s = null, saveTimer = null, dirty = false, disposed = false;
 
     A.setTop({ title: '项目设置', back: true });
     view.appendChild(A.h('div', { class: 'hint', text: '载入中…' }));
 
     St.load().then(function (loaded) {
+      if (disposed) { return; }
       s = loaded;
       A.clear(view);
       build();
     }).catch(function (e) {
+      if (disposed) { return; }
       A.clear(view);
       view.appendChild(A.h('div', { class: 'note bad', text: '读取设置失败：' + e.message }));
     });
@@ -90,6 +92,7 @@
                         '恢复默认', 'danger').then(function (ok) {
                 if (!ok) { return; }
                 St.reset().then(function (d) {
+                  if (disposed) { return; }
                   s = d; dirty = false;
                   A.clear(view); build();
                   A.toast('已恢复默认设置');
@@ -334,7 +337,7 @@
       ]);
     }
 
-    return function () { flushSave(); };
+    return function () { disposed = true; flushSave(); };
   }
 
   return { render: render };

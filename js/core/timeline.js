@@ -174,20 +174,11 @@
     });
 
     // ---------------------------------------------------------- 拍摄量
-    var setups = settings.setups > 0 ? Math.round(settings.setups) : null;
-    var budget = null;
-    if (setups && blueMinutes !== null && blueMinutes > 0) {
-      var per = blueMinutes / setups;
-      var maxSetups = Math.floor(blueMinutes / MIN_PER_SETUP);
-      budget = {
-        setups: setups,
-        perSetup: per,
-        ok: per >= MIN_PER_SETUP,
-        minPerSetup: MIN_PER_SETUP,
-        maxSetups: maxSetups,
-        cut: Math.max(0, setups - maxSetups)
-      };
-    }
+    // setups 是"这个机位打算拍几个"，所以记录优先、项目设置兜底。
+    // 这条规则必须在核心里，不能藏在界面层——否则别的调用方会静默拿错值。
+    var setupsRaw = (rec.setups !== null && rec.setups !== undefined)
+      ? rec.setups : settings.setups;
+    var budget = budgetFor(blueMinutes, setupsRaw);
 
     return {
       ok: true,
@@ -225,6 +216,27 @@
     };
   }
 
+  /**
+   * 拍摄量核算。单独抽出来是因为界面上改 setup 数时要即时更新，
+   * 不能为了这一个数字重算整条时间轴（会把输入框重建掉、抢走焦点）。
+   * @returns {Object|null} 窗口为空或 setup 数无效时返回 null
+   */
+  function budgetFor(blueMinutes, setups) {
+    var n = (typeof setups === 'number' && isFinite(setups)) ? Math.round(setups) : null;
+    if (!n || n <= 0) { return null; }
+    if (blueMinutes === null || !(blueMinutes > 0)) { return null; }
+    var per = blueMinutes / n;
+    var maxSetups = Math.floor(blueMinutes / MIN_PER_SETUP);
+    return {
+      setups: n,
+      perSetup: per,
+      ok: per >= MIN_PER_SETUP,
+      minPerSetup: MIN_PER_SETUP,
+      maxSetups: maxSetups,
+      cut: Math.max(0, n - maxSetups)
+    };
+  }
+
   /** 取当前选中的镜头。没选或越界时返回 null。 */
   function pickLens(settings) {
     var list = settings.lenses || [];
@@ -245,6 +257,7 @@
     LEAD_MINUTES: LEAD_MINUTES,
     MIN_PER_SETUP: MIN_PER_SETUP,
     build: build,
+    budgetFor: budgetFor,
     indexForTime: indexForTime,
     crossingBetween: crossingBetween,
     pickLens: pickLens

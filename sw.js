@@ -21,7 +21,7 @@
  */
 'use strict';
 
-var VERSION = 'v11';
+var VERSION = 'v12';
 var CACHE = 'bluehour-' + VERSION;
 var NET_TIMEOUT = 2000;   // 网络多久没响应就先用缓存顶上
 
@@ -60,6 +60,7 @@ var ASSETS = [
   './js/test/exposure.test.js',
   './js/test/timeline.test.js',
   './js/test/cloud.test.js',
+  './js/test/edge.test.js',
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png'

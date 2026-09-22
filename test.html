@@ -115,6 +115,8 @@ td.ok{color:var(--pass)} td.bad{color:var(--fail)}
 <script src="js/core/exposure.js"></script>
 <script src="js/core/timeline.js"></script>
 <script src="js/core/cloud.js"></script>
+<script src="js/data/records.js"></script>
+<script src="js/data/settings.js"></script>
 <script src="js/data/weather.js"></script>
 <script src="js/ui/compass.js"></script>
 <script src="js/ui/app.js"></script>
@@ -129,6 +131,7 @@ td.ok{color:var(--pass)} td.bad{color:var(--fail)}
 <script src="js/test/exposure.test.js"></script>
 <script src="js/test/timeline.test.js"></script>
 <script src="js/test/cloud.test.js"></script>
+<script src="js/test/edge.test.js"></script>
 <script>
 (function () {
   'use strict';
@@ -152,7 +155,8 @@ td.ok{color:var(--pass)} td.bad{color:var(--fail)}
     sum.appendChild(el('span', 'label',
       result.failed === 0
         ? '条断言全部通过 · ' + result.suites.length + ' 个套件'
-        : '条断言失败，共 ' + result.total + ' 条'));
+        : '条断言失败，共 ' + result.total + ' 条' +
+          (result.errored ? '（其中 ' + result.errored + ' 个测试直接抛错）' : '')));
     sum.appendChild(el('span', 'ms', Math.round(t1 - t0) + ' ms'));
 
     var out = document.getElementById('out');

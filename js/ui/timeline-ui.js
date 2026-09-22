@@ -51,11 +51,9 @@
     // ------------------------------------------------------------ 重建
 
     function rebuild() {
-      var effective = Object.assign({}, settings, {
-        setups: (rec.setups !== null && rec.setups !== undefined) ? rec.setups : settings.setups
-      });
+      // setups 的记录优先规则在 core/timeline.js 里，这里不重复一遍
       result = TL.build({
-        rec: rec, dateKey: dateKey, settings: effective,
+        rec: rec, dateKey: dateKey, settings: settings,
         calib: calibInfo ? calibInfo.calib : null
       });
       paint();
@@ -267,7 +265,10 @@
       lensSel.value = String(settings.selectedLens);
       lensSel.addEventListener('change', function () {
         settings.selectedLens = parseInt(lensSel.value, 10);
-        St.save(settings).then(rebuild);
+        St.save(settings).then(function () {
+          if (disposed) { return; }
+          rebuild();
+        });
       });
 
       var setupsIn = A.h('input', {
@@ -288,10 +289,20 @@
             '</strong> 个，建议砍掉 <strong>' + b.cut + '</strong> 个。';
         }
       }
+      // 这里**不能**整页重建：paint() 会把这个输入框本身销毁重建，
+      // 焦点随之丢失，想输入两位数就变成只能输第一位。
+      // 核算只依赖窗口时长和 setup 数，就地重算即可。
+      var setupsSaveTimer = null;
       setupsIn.addEventListener('input', function () {
         var v = parseInt(setupsIn.value, 10);
         rec.setups = (isFinite(v) && v >= 1 && v <= 99) ? v : null;
-        R.save(rec).then(function () { rebuild(); });
+        result.stats.budget = TL.budgetFor(result.stats.blueMinutes, rec.setups);
+        syncBudget();
+        if (setupsSaveTimer) { clearTimeout(setupsSaveTimer); }
+        setupsSaveTimer = setTimeout(function () {
+          if (disposed) { return; }
+          R.save(rec);
+        }, 600);
       });
       syncBudget();
 
@@ -503,6 +514,7 @@
         }).then(function () {
           return Cal.fitFor(rec.id);
         }).then(function (c) {
+          if (disposed) { return; }
           calibInfo = c;
           rebuild();
           A.toast('已记下。当前共 ' + c.totalCount + ' 个实测点（本地点 ' + c.localCount + ' 个）', 3500);
@@ -547,7 +559,10 @@
                     '清空', 'danger').then(function (ok) {
             if (!ok) { return; }
             Cal.clear().then(function () { return Cal.fitFor(rec.id); })
-              .then(function (c) { calibInfo = c; rebuild(); A.toast('已清空'); });
+              .then(function (c) {
+                if (disposed) { return; }
+                calibInfo = c; rebuild(); A.toast('已清空');
+              });
           });
         });
       });

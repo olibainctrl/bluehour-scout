@@ -88,23 +88,34 @@
 
   /** 运行全部 suite，返回汇总结果。 */
   function run() {
-    var total = 0, failed = 0, suiteOut = [];
+    var total = 0, failed = 0, errored = 0, suiteOut = [];
     for (var i = 0; i < suites.length; i++) {
       var s = suites[i];
       var sPass = 0, sFail = 0;
       for (var j = 0; j < s.tests.length; j++) {
         var t = s.tests[j];
-        var tFail = t.error ? 1 : 0;
+        var tFail = 0;
         for (var k = 0; k < t.assertions.length; k++) {
           total++;
           if (t.assertions[k].pass) { sPass++; } else { sFail++; tFail++; }
+        }
+        // 测试体抛错也必须计入失败总数。
+        // 原先只记在 t.failed 上、不加进 sFail，结果是："一条断言都没跑到就挂了"
+        // 的测试会被汇总成 failed:0，整页报"全部通过"。
+        // 这正是最危险的一类 bug：测试在爆炸，报告却是绿的。
+        if (t.error) {
+          total++; sFail++; tFail++;
+          errored++;
         }
         t.failed = tFail;
       }
       failed += sFail;
       suiteOut.push({ name: s.name, tests: s.tests, passed: sPass, failed: sFail });
     }
-    return { total: total, failed: failed, passed: total - failed, suites: suiteOut };
+    return {
+      total: total, failed: failed, passed: total - failed,
+      errored: errored, suites: suiteOut
+    };
   }
 
   /** 纯文本报告，命令行/控制台用。 */
@@ -130,7 +141,8 @@
     out.push('');
     out.push(result.failed === 0
       ? '全部通过：' + result.passed + ' 条断言'
-      : '失败 ' + result.failed + ' / ' + result.total + ' 条断言');
+      : '失败 ' + result.failed + ' / ' + result.total + ' 条断言' +
+        (result.errored ? '（其中 ' + result.errored + ' 个测试直接抛错）' : ''));
     return out.join('\n');
   }
 

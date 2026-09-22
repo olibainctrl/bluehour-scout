@@ -176,9 +176,11 @@
     ]);
 
     var listBox = A.h('div');
+    var disposed = false;
     view.appendChild(listBox);
 
     R.list().then(function (rows) {
+      if (disposed) { return; }
       A.clear(listBox);
       if (!rows.length) {
         listBox.appendChild(A.h('div', { class: 'empty' }, [
@@ -220,6 +222,7 @@
       });
       listBox.appendChild(A.h('div', { class: 'card tight' }, ul));
     }).catch(function (e) {
+      if (disposed) { return; }
       A.clear(listBox);
       listBox.appendChild(A.h('div', { class: 'note bad', text: '读取记录失败：' + e.message }));
     });
@@ -227,6 +230,7 @@
     function createNew() {
       var rec = R.create();
       R.save(rec).then(function () {
+        if (disposed) { return; }   // 保存返回时人可能已经翻到别处了
         // 新建直接进第一步，不要先扔一张空表单给人看
         A.go(stepHash(rec.id, 0));
       }).catch(function (e) { A.toast('新建失败：' + e.message, 4000); });
@@ -337,6 +341,8 @@
           }).catch(function (e) { A.toast('导入失败：' + e.message, 4000); });
         });
     }
+
+    return function () { disposed = true; };
   }
 
   // -------------------------------------------------- 载入记录的公共骨架

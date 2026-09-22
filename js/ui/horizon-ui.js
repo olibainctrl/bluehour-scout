@@ -517,6 +517,7 @@
       var pCamera = VF.supported() ? vf.start() : Promise.resolve('unsupported');
 
       pCompass.then(function (st) {
+        if (disposed) { C.stop(); return; }
         refreshStatus();
         if (st === 'granted') {
           C.start(onReading, function () { refreshStatus(); });
@@ -528,6 +529,9 @@
       });
 
       pCamera.then(function (cs) {
+        // 授权对话框可能在用户已经离开这一页之后才返回。
+        // 不在这里停掉的话，相机会一直开着、指示灯常亮，而且再也没人去关它。
+        if (disposed) { vf.stop(); return; }
         syncCamBtn();
         // 相机拿不到不影响采集，只是对准全靠手感，所以只提示不阻断
         if (cs !== 'on' && cs !== 'unsupported') {
