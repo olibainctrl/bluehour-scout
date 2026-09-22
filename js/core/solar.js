@@ -271,10 +271,41 @@
   }
 
   /**
-   * 求太阳几何高度角下降穿越任意角度的时刻（蓝调区间上下界用）。
+   * 求太阳几何高度角穿越任意角度的时刻。
    */
   function altitudeCrossing(refMs, lat, lon, targetAlt, rising) {
     return crossing(solarNoon(refMs, lat, lon), lat, lon, targetAlt, rising);
+  }
+
+  /**
+   * 求太阳**视**高度角（含大气折射）穿越任意角度的时刻。
+   *
+   * 蓝调区间的上下界要用这个。界面上显示的高度角、遮挡判定用的高度角、
+   * EV 和色温模型吃的高度角全都是视高度角，窗口边界当然也得是同一个量，
+   * 否则顶部大字的分钟数会和表格里的行对不上。
+   */
+  function apparentAltitudeCrossing(refMs, lat, lon, targetAlt, rising) {
+    var noon = solarNoon(refMs, lat, lon);
+    // 先用几何高度角的时角公式给初值（两者相差不到 0.5°），再对视高度角迭代
+    var t = julianCentury(toJulian(noon));
+    var ha = hourAngleForAltitude(targetAlt, lat, sunDeclination(t));
+    if (ha === null) { return null; }
+
+    var x = noon + (rising ? -ha : ha) / 15 * MS_HOUR;
+    for (var i = 0; i < 10; i++) {
+      var f = position(x, lat, lon).apparentAltitude - targetAlt;
+      var slope = (position(x + 30000, lat, lon).apparentAltitude -
+                   position(x - 30000, lat, lon).apparentAltitude) / 60000;
+      if (slope === 0) { break; }
+      var step = f / slope;
+      if (step > MS_HOUR) { step = MS_HOUR; }
+      if (step < -MS_HOUR) { step = -MS_HOUR; }
+      x -= step;
+      if (Math.abs(step) < 1) { break; }
+    }
+    if (Math.abs(x - noon) > 12 * MS_HOUR) { return null; }
+    if (Math.abs(position(x, lat, lon).apparentAltitude - targetAlt) > 0.01) { return null; }
+    return x;
   }
 
   return {
@@ -286,6 +317,7 @@
     events: events,
     solarNoon: solarNoon,
     altitudeCrossing: altitudeCrossing,
+    apparentAltitudeCrossing: apparentAltitudeCrossing,
     refraction: refraction,
     hourAngleForAltitude: hourAngleForAltitude,
     // 以下为内部量，导出供测试与调试使用

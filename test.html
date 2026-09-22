@@ -86,7 +86,7 @@ td.ok{color:var(--pass)} td.bad{color:var(--fail)}
 
 <h1>蓝调勘景仪 · 算法测试</h1>
 <p class="sub">
-  太阳位置（NOAA 算法本地实现）、时区工具、地平线遮挡剖面、罗盘瞄准几何、取景器与界面几何约束的单元测试。全部本地计算，不联网。<br>
+  太阳位置（NOAA 算法本地实现）、时区工具、地平线遮挡剖面、罗盘瞄准几何、取景器、曝光模型、光线时间轴与界面几何约束的单元测试。全部本地计算，不联网。<br>
   主基准 <a href="https://gml.noaa.gov/grad/solcalc/" target="_blank" rel="noopener">NOAA Solar Calculator</a>，容差 ±60 秒 ·
   交叉参考 <a href="https://geodesyapps.ga.gov.au/sunrise" target="_blank" rel="noopener">Geoscience Australia</a>，容差 ±120 秒
 </p>
@@ -112,6 +112,8 @@ td.ok{color:var(--pass)} td.bad{color:var(--fail)}
 <script src="js/core/solar.js"></script>
 <script src="js/core/tz.js"></script>
 <script src="js/core/horizon.js"></script>
+<script src="js/core/exposure.js"></script>
+<script src="js/core/timeline.js"></script>
 <script src="js/ui/compass.js"></script>
 <script src="js/ui/app.js"></script>
 <script src="js/ui/viewfinder.js"></script>
@@ -122,6 +124,8 @@ td.ok{color:var(--pass)} td.bad{color:var(--fail)}
 <script src="js/test/compass.test.js"></script>
 <script src="js/test/ui-geometry.test.js"></script>
 <script src="js/test/viewfinder.test.js"></script>
+<script src="js/test/exposure.test.js"></script>
+<script src="js/test/timeline.test.js"></script>
 <script>
 (function () {
   'use strict';

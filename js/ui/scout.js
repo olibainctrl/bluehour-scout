@@ -160,6 +160,10 @@
       actions: [
         A.h('button', {
           class: 'btn sm ghost', type: 'button',
+          on: { click: function () { A.go('/settings'); } }
+        }, '设置'),
+        A.h('button', {
+          class: 'btn sm ghost', type: 'button',
           on: { click: showDataSheet }
         }, '数据')
       ]
@@ -461,17 +465,27 @@
         }, '删除这条记录')
       ]));
 
+      // 必填项齐了之后，主按钮就该是"拿去算光线"而不是"返回列表"
+      var canTimeline = rec.lat !== null && rec.lon !== null;
       A.setDock([
-        next >= 0
+        todo.length
           ? A.h('button', {
               class: 'btn primary block', type: 'button',
               on: { click: function () { ctx.flushSave().then(function () { A.go(stepHash(rec.id, next)); }); } }
             }, '继续：' + STEPS[next].title + ' →')
           : A.h('button', {
               class: 'btn primary block', type: 'button',
-              on: { click: function () { ctx.flushSave().then(function () { A.go('/'); }); } }
-            }, '完成，返回列表')
+              on: { click: function () { ctx.flushSave().then(function () { A.go('/rec/' + rec.id + '/timeline'); }); } }
+            }, '光线时间轴 →')
       ]);
+
+      // 只要有坐标就能算（没剖面时只是给不出真实日落），单独给个入口
+      if (canTimeline && todo.length) {
+        view.insertBefore(A.h('button', {
+          class: 'btn block', type: 'button', style: 'margin-bottom:14px',
+          on: { click: function () { ctx.flushSave().then(function () { A.go('/rec/' + rec.id + '/timeline'); }); } }
+        }, '先看光线时间轴 →'), view.querySelector('.danger-zone'));
+      }
     });
   }
 

@@ -21,7 +21,7 @@
  */
 'use strict';
 
-var VERSION = 'v9';
+var VERSION = 'v10';
 var CACHE = 'bluehour-' + VERSION;
 var NET_TIMEOUT = 2000;   // 网络多久没响应就先用缓存顶上
 
@@ -34,13 +34,19 @@ var ASSETS = [
   './js/core/solar.js',
   './js/core/tz.js',
   './js/core/horizon.js',
+  './js/core/exposure.js',
+  './js/core/timeline.js',
   './js/data/db.js',
   './js/data/records.js',
+  './js/data/settings.js',
+  './js/data/calibration.js',
   './js/ui/app.js',
   './js/ui/compass.js',
   './js/ui/viewfinder.js',
   './js/ui/horizon-ui.js',
   './js/ui/scout.js',
+  './js/ui/timeline-ui.js',
+  './js/ui/settings-ui.js',
   './js/ui/compass-sim.js',
   './js/test/harness.js',
   './js/test/solar.test.js',
@@ -48,6 +54,8 @@ var ASSETS = [
   './js/test/compass.test.js',
   './js/test/ui-geometry.test.js',
   './js/test/viewfinder.test.js',
+  './js/test/exposure.test.js',
+  './js/test/timeline.test.js',
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png'

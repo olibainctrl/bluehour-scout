@@ -32,15 +32,21 @@
 <script src="js/core/solar.js"></script>
 <script src="js/core/tz.js"></script>
 <script src="js/core/horizon.js"></script>
+<script src="js/core/exposure.js"></script>
+<script src="js/core/timeline.js"></script>
 <!-- 数据层 -->
 <script src="js/data/db.js"></script>
 <script src="js/data/records.js"></script>
+<script src="js/data/settings.js"></script>
+<script src="js/data/calibration.js"></script>
 <!-- 界面层 -->
 <script src="js/ui/app.js"></script>
 <script src="js/ui/compass.js"></script>
 <script src="js/ui/viewfinder.js"></script>
 <script src="js/ui/horizon-ui.js"></script>
 <script src="js/ui/scout.js"></script>
+<script src="js/ui/timeline-ui.js"></script>
+<script src="js/ui/settings-ui.js"></script>
 <!-- 开发用：只在网址带 ?sim=1 时启用 -->
 <script src="js/ui/compass-sim.js"></script>
 
@@ -71,6 +77,8 @@
   A.route('/rec/:id', BH.Scout.renderOverview);
   A.route('/rec/:id/s/:step', BH.Scout.renderStep);
   A.route('/rec/:id/horizon', BH.Scout.renderHorizon);
+  A.route('/rec/:id/timeline', BH.TimelineUI.render);
+  A.route('/settings', BH.SettingsUI.render);
 
   A.start({
     topbar: document.getElementById('topbar'),

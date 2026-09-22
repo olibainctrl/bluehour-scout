@@ -474,3 +474,114 @@ details.fold > .fold-body{padding:0 14px 14px;border-top:1px solid var(--line-so
 .vf:not(.live) .vf-ring,
 .vf:not(.live) .vf-read,
 .vf:not(.live) .vf-foot{display:none}
+
+/* ------------------------------------------------------------ 光线时间轴 */
+
+/* 日期选择条 */
+.datebar{display:flex;gap:8px;align-items:center;margin-bottom:14px}
+.datebar input[type=date]{flex:1;min-height:var(--tap);text-align:center;font-family:var(--mono)}
+.datebar .step{
+  flex:none;width:44px;min-height:var(--tap);display:flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--line);border-radius:10px;
+  color:var(--ink-dim);font-size:19px;cursor:pointer;
+}
+.datebar .step:active{background:var(--bg-row)}
+
+/* 顶部大字：窗口时长 */
+.window-big{
+  border:1px solid var(--line);border-radius:14px;background:var(--bg-raise);
+  padding:18px 16px;margin-bottom:12px;
+}
+.window-big .n{
+  font:600 clamp(46px,16vw,68px)/1 var(--mono);color:var(--amber);
+  letter-spacing:-.04em;font-variant-numeric:tabular-nums;
+}
+.window-big .u{font-size:16px;color:var(--ink-dim);margin-left:8px}
+.window-big .sub{font-size:14px;color:var(--ink-dim);margin-top:8px;line-height:1.6}
+.window-big .sub b{color:var(--ink);font-weight:600;font-family:var(--mono)}
+.window-big.bad .n{color:var(--bad)}
+
+/* 「现在」面板：站在机器旁边扫一眼要读的就是这个 */
+.now-panel{
+  border:1px solid #4d3d1d;border-radius:14px;background:var(--amber-wash);
+  padding:16px;margin-bottom:12px;
+}
+.now-panel .lab{
+  font-size:11px;letter-spacing:.14em;color:var(--amber-dim);
+  text-transform:uppercase;margin-bottom:8px;font-weight:600;
+}
+.now-panel .big{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.now-panel .t{
+  font:600 clamp(40px,14vw,58px)/1 var(--mono);color:var(--amber);
+  letter-spacing:-.03em;font-variant-numeric:tabular-nums;
+}
+.now-panel .iso{font:600 15px/1 var(--mono);color:var(--ink-dim)}
+.now-panel .row2{
+  display:flex;gap:16px;margin-top:12px;font:12px/1.5 var(--mono);color:var(--ink-dim);flex-wrap:wrap;
+}
+.now-panel .row2 b{color:var(--ink);font-weight:600}
+.now-panel .warn{
+  margin-top:10px;font-size:12px;color:var(--bad);line-height:1.6;
+}
+
+/* 关键时刻 */
+.moments{list-style:none;margin:0;padding:0}
+.moments li{
+  display:flex;align-items:baseline;gap:10px;padding:9px 0;
+  border-bottom:1px solid var(--line-soft);font-size:14px;
+}
+.moments li:last-child{border-bottom:none}
+.moments .k{flex:1;color:var(--ink-dim)}
+.moments .v{font:600 16px/1 var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.moments .x{font-size:12px;color:var(--ink-faint);flex:none}
+.moments li.hi .k{color:var(--amber)}
+.moments li.hi .v{color:var(--amber)}
+
+/* 表格：外层自己滚，表头和时间列都吸住 */
+.tl-wrap{
+  overflow:auto;-webkit-overflow-scrolling:touch;max-height:58vh;
+  border:1px solid var(--line);border-radius:12px;background:var(--bg-sunk);
+}
+table.tl{width:100%;border-collapse:separate;border-spacing:0;font:12px/1.4 var(--mono)}
+table.tl th{
+  position:sticky;top:0;z-index:2;background:#101016;color:var(--ink-faint);
+  font-weight:600;text-align:right;padding:8px 7px;white-space:nowrap;
+  font-size:10px;letter-spacing:.05em;border-bottom:1px solid var(--line);
+}
+table.tl td{
+  padding:7px;text-align:right;white-space:nowrap;color:var(--ink-dim);
+  font-variant-numeric:tabular-nums;border-bottom:1px solid #15151b;
+}
+table.tl th.t,table.tl td.t{
+  position:sticky;left:0;z-index:1;text-align:left;
+  background:var(--bg-sunk);border-right:1px solid var(--line);
+}
+table.tl th.t{z-index:3;background:#101016}
+table.tl tr:last-child td{border-bottom:none}
+
+table.tl tr.blue td{background:#0d1017}
+table.tl tr.blue td.t{background:#0d1017}
+table.tl tr.occ td.alt{color:var(--ink-faint)}
+table.tl tr.rs td{background:#241b0c;color:var(--amber)}
+table.tl tr.rs td.t{background:#241b0c;color:var(--amber);font-weight:600}
+table.tl tr.now td{background:#2a2110;color:var(--ink);box-shadow:inset 0 0 0 1px #4d3d1d}
+table.tl tr.now td.t{background:#2a2110;color:var(--amber);font-weight:600}
+table.tl tr.lit td.t{color:var(--ok)}
+table.tl td.over{color:var(--bad)}
+table.tl td.dim{color:#5a554c}
+table.tl tr:active td{background:var(--bg-row)}
+
+.tl-legend{
+  display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--ink-faint);margin-top:10px;
+}
+.tl-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* 校准状态条 */
+.calib{
+  display:flex;align-items:center;gap:10px;
+  border:1px solid var(--line);border-radius:11px;background:var(--bg-raise);
+  padding:12px 13px;margin-bottom:12px;font-size:13px;color:var(--ink-dim);line-height:1.55;
+}
+.calib b{color:var(--ink);font-weight:600}
+.calib.on{border-color:#2a3d20;background:#101a0d}
+.calib.on b{color:var(--ok)}

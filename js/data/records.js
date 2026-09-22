@@ -51,6 +51,7 @@
       horizon: H.empty(),
       horizonSampledAt: null,
       notes: '',
+      setups: null,        // 这个机位计划拍几个 setup（拍摄量核算用）
       hasPhoto: false,
       createdAt: now,
       updatedAt: now
@@ -81,6 +82,8 @@
     r.horizon = H.normalize(input.horizon);
     r.horizonSampledAt = clampNum(input.horizonSampledAt, 0, 1e15);
     r.notes = typeof input.notes === 'string' ? input.notes.slice(0, 4000) : '';
+    r.setups = clampNum(input.setups, 1, 99);
+    if (r.setups !== null) { r.setups = Math.round(r.setups); }
     r.hasPhoto = !!input.hasPhoto;
     r.createdAt = clampNum(input.createdAt, 0, 1e15) || Date.now();
     r.updatedAt = clampNum(input.updatedAt, 0, 1e15) || r.createdAt;
