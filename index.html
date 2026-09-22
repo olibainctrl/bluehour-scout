@@ -93,8 +93,11 @@
   });
 
   // Service Worker：断网时除天气外全部功能可用。
-  // 缓存策略是"先给缓存、后台更新"，所以推了新版本后这一次打开拿到的还是旧的。
-  // 装好新版本就提示一下，否则用户会一直停在旧代码上还不知道。
+  // 缓存策略是网络优先（见 sw.js），所以有网时打开一定是最新代码。
+  // 这里再做两件事：一是每次打开都主动检查 sw.js 有没有更新，
+  // 二是新版本装好后弹提示——注意 register() 返回时新版本可能**已经**装完，
+  // 那时 updatefound 事件早就过去了，只监听事件会漏掉，所以还要查一遍
+  // reg.waiting / reg.installing。
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', function () {
       var reloading = false;
@@ -104,15 +107,33 @@
         location.reload();
       });
 
-      navigator.serviceWorker.register('sw.js').then(function (reg) {
-        reg.addEventListener('updatefound', function () {
-          var sw = reg.installing;
+      navigator.serviceWorker.register('sw.js', {
+        // sw.js 本身绝不走 HTTP 缓存，否则更新检查会被缓存挡住
+        updateViaCache: 'none'
+      }).then(function (reg) {
+        function watch(sw) {
           if (!sw) { return; }
+          if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBar(sw);
+            return;
+          }
           sw.addEventListener('statechange', function () {
             if (sw.state === 'installed' && navigator.serviceWorker.controller) {
               showUpdateBar(sw);
             }
           });
+        }
+
+        // register() 之前就装好的情况
+        watch(reg.waiting);
+        watch(reg.installing);
+        reg.addEventListener('updatefound', function () { watch(reg.installing); });
+
+        // 每次打开、以及从后台切回来时，主动查一次有没有新版本
+        function check() { reg.update().catch(function () {}); }
+        check();
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'visible') { check(); }
         });
       }).catch(function () {
         // 注册失败不影响在线使用，静默即可

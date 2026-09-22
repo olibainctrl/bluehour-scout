@@ -240,11 +240,56 @@
       });
       document.body.appendChild(fileInput);
 
+      // 缓存陈旧最麻烦的地方是它不可见。把版本号摆出来，再给一个手动检查的入口。
+      var verLine = A.h('div', { class: 'hint', text: '版本：读取中…' });
+      var updBtn = A.h('button', {
+        class: 'btn sm ghost', type: 'button', style: 'margin-top:10px',
+        on: { click: checkUpdate }
+      }, '检查更新');
+
+      function showVersion() {
+        if (!root.caches || !caches.keys) { verLine.textContent = '版本：无缓存信息'; return; }
+        caches.keys().then(function (keys) {
+          var mine = keys.filter(function (k) { return k.indexOf('bluehour-') === 0; });
+          verLine.textContent = mine.length
+            ? '版本：' + mine.join('、') + (navigator.serviceWorker && navigator.serviceWorker.controller
+                ? '（离线缓存已就绪）' : '（离线缓存未接管）')
+            : '版本：尚未建立离线缓存';
+        }).catch(function () { verLine.textContent = '版本：读取失败'; });
+      }
+
+      function checkUpdate() {
+        if (!navigator.serviceWorker || !navigator.serviceWorker.getRegistration) {
+          A.toast('这个浏览器不支持离线缓存', 3500);
+          return;
+        }
+        updBtn.disabled = true;
+        updBtn.textContent = '检查中…';
+        navigator.serviceWorker.getRegistration().then(function (reg) {
+          if (!reg) { A.toast('还没注册离线缓存', 3500); return null; }
+          return reg.update().then(function () {
+            if (reg.waiting || reg.installing) {
+              A.toast('发现新版本，页面底部会提示刷新', 4000);
+            } else {
+              A.toast('已是最新版本', 2600);
+            }
+          });
+        }).catch(function () {
+          A.toast('检查失败，可能是离线状态', 3500);
+        }).then(function () {
+          updBtn.disabled = false;
+          updBtn.textContent = '检查更新';
+          showVersion();
+        });
+      }
+
+      showVersion();
+
       A.sheet({
         title: '数据',
         sub: '导出是纯 JSON，可以存到文件 App 或发给自己。照片是二进制，不在 JSON 里。',
         dismissValue: null,
-        body: A.h('div'),
+        body: A.h('div', null, [verLine, updBtn]),
         actions: [
           { label: '导入 JSON', value: 'in', kind: 'ghost' },
           { label: '导出 JSON', value: 'out', kind: 'primary' }
