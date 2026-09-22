@@ -27,7 +27,7 @@
     T.test('拿不到相机的三种说明都要讲清"不影响采集"', function () {
       ['denied', 'unsupported', 'error'].forEach(function (st) {
         var m = V.explain(st);
-        T.ok(/手感|不影响/.test(m), st + ' 的说明点明了降级后果');
+        T.ok(m.indexOf('不影响采集') >= 0, st + ' 的说明点明了不阻断采集');
       });
     });
 

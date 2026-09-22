@@ -451,15 +451,20 @@
     view.appendChild(A.h('details', { class: 'fold' }, [
       A.h('summary', null, '怎么用'),
       A.h('div', { class: 'fold-body' }, [
-        A.h('p', { class: 'hint' },
-          '竖着举起手机，像拍照一样用**背面**对准天际线，然后原地缓慢转一圈。'
-            .replace(/\*\*/g, '')),
-        A.h('p', { class: 'hint' },
-          '在一个方向停住约半秒就会自动记下该方向的天际线仰角，罗盘图上对应的扇区会亮起来。' +
-          '转得快一些也行，只要在每个扇区里停够一瞬间；转太快会提示你慢下来。'),
-        A.h('p', { class: 'hint' },
-          '转完一圈 36 个扇区就齐了。采到的值会自动存盘，中途退出不会丢。' +
-          '罗盘不可用时，下面的「逐扇区数值」可以逐格手填。')
+        A.h('p', { class: 'hint' }, [
+          A.h('b', { text: '一、' }),
+          '竖着举起手机，用后摄对准天际线。开了相机就把准星压在天际线上，没开相机就靠手机背面的指向。'
+        ]),
+        A.h('p', { class: 'hint' }, [
+          A.h('b', { text: '二、' }),
+          '原地转一圈。每 10° 一个扇区，在一个方向停住约半秒就记下该方向的仰角，罗盘图上对应的扇区会亮起来。' +
+          '转太快会采不上，届时会提示你慢下来。'
+        ]),
+        A.h('p', { class: 'hint' }, [
+          A.h('b', { text: '三、' }),
+          '转完 36 个扇区就齐了。数值自动存盘，中途退出不会丢。' +
+          '罗盘不可用时，下面的「逐扇区数值」可以逐格手填。'
+        ])
       ])
     ]));
 
@@ -516,7 +521,7 @@
         if (st === 'granted') {
           C.start(onReading, function () { refreshStatus(); });
           requestWakeLock();
-          A.toast('罗盘已启用，把准星压在天际线上慢慢转一圈');
+          A.toast('罗盘已启用，慢慢转一圈');
         } else {
           A.toast(C.explain(st), 4200);
         }
@@ -671,7 +676,7 @@
       vf.setReadout(heading, live ? live.elevation : null);
       vf.setDwell(frac, captured);
       if (heading === null) {
-        vf.setFooter('把准星压在天际线上');
+        vf.setFooter('准星对准天际线');
       } else {
         vf.setFooter('扇区 ' + H.azimuthOf(curSec) + '° ' + A.compassName(heading) +
                      (captured ? ' · 已采，停住可覆盖' : ' · 停住约半秒即记下'));

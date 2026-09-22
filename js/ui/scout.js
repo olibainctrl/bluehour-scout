@@ -57,11 +57,11 @@
     },
     {
       key: 'horizon', title: '地平线剖面', required: true,
-      lead: '举着手机转一圈，记下四周天际线的高度。这一步决定真正的日落时刻。',
+      lead: '开相机把准星对准天际线，原地转一圈记下四周的仰角。这一步决定真正的日落时刻。',
       done: function (rec) { return H.count(rec.horizon) > 0; },
       summary: function (rec) {
         var n = H.count(rec.horizon);
-        if (n === 0) { return '还没采集 —— 最关键的一步'; }
+        if (n === 0) { return '还没采集'; }
         if (n < H.SECTORS) { return '已采 ' + n + '/36，还有缺口'; }
         var st = H.stats(rec.horizon);
         return '36/36 已采齐 · 最高 ' + A.deg(st.max);

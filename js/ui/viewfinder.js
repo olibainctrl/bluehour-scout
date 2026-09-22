@@ -49,12 +49,12 @@
     switch (state) {
       case 'on': return '相机已开启';
       case 'off': return '相机未开启';
-      case 'unsupported': return '这个浏览器不支持调用相机，只能靠手感对准。';
+      case 'unsupported': return '这个浏览器不支持调用相机。不影响采集。';
       case 'insecure': return '相机需要 HTTPS。iOS 上 localhost 也不算安全上下文。';
-      case 'denied': return '相机权限被拒绝。可在「设置 → Safari → 相机」重新允许；不用相机也能采集，只是对准全靠手感。';
+      case 'denied': return '相机权限被拒绝。可在「设置 → Safari → 相机」重新允许。不影响采集。';
       case 'notfound': return '找不到可用的摄像头。';
       case 'busy': return '摄像头被别的 App 占着，关掉相机类 App 再试。';
-      default: return '相机打不开' + (detail ? '：' + detail : '。') + '不影响采集，只是对准全靠手感。';
+      default: return '相机打不开' + (detail ? '：' + detail : '。') + '不影响采集。';
     }
   }
 
@@ -116,7 +116,7 @@
       A.h('span', null, ['方位 ', azOut]),
       A.h('span', null, ['仰角 ', elOut])
     ]);
-    var footer = A.h('div', { class: 'vf-foot', text: '把准星压在天际线上' });
+    var footer = A.h('div', { class: 'vf-foot', text: '准星对准天际线' });
 
     var placeholder = A.h('div', { class: 'vf-off' });
     var node = A.h('div', { class: 'vf' }, [video, hLine, cross, ring, readout, footer, placeholder]);
@@ -183,7 +183,7 @@
       if (state === 'on') { showLive(true); return; }
       showLive(false);
       if (state === 'off') {
-        setPlaceholder('打开相机，把准星压在天际线上再读数，比凭手感准得多。',
+        setPlaceholder('开启相机后可以对准天际线，仰角读数更准。',
                        '开启相机', function () { start(); });
       } else if (state === 'denied' || state === 'error' || state === 'busy') {
         setPlaceholder(explain(state, lastError), '再试一次', function () { start(); });
