@@ -13,7 +13,7 @@
  */
 'use strict';
 
-var VERSION = 'v5';
+var VERSION = 'v6';
 var CACHE = 'bluehour-' + VERSION;
 
 var ASSETS = [
@@ -29,6 +29,7 @@ var ASSETS = [
   './js/data/records.js',
   './js/ui/app.js',
   './js/ui/compass.js',
+  './js/ui/viewfinder.js',
   './js/ui/horizon-ui.js',
   './js/ui/scout.js',
   './js/ui/compass-sim.js',
@@ -37,6 +38,7 @@ var ASSETS = [
   './js/test/horizon.test.js',
   './js/test/compass.test.js',
   './js/test/ui-geometry.test.js',
+  './js/test/viewfinder.test.js',
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png'

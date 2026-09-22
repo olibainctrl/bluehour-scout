@@ -17,10 +17,11 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
-  var A = null, H = null, C = null, R = null;
+  var A = null, H = null, C = null, R = null, VF = null;
   function deps() {
     A = A || root.BH.App; H = H || root.BH.Horizon;
     C = C || root.BH.Compass; R = R || root.BH.Records;
+    VF = VF || root.BH.Viewfinder;
   }
 
   // 落点规则有两条，缺一不可：
@@ -346,10 +347,30 @@
     var speedHint = A.h('div', { class: 'note bad', style: 'display:none;margin:10px 0 0' });
     var savedOut = A.h('span', { class: 'meta', text: '' });
 
+    var vf = VF.create();
+
     var enableBtn = A.h('button', {
       class: 'btn primary block', type: 'button',
-      on: { click: enableCompass }
-    }, '启用罗盘');
+      on: { click: enableSensors }
+    }, VF.supported() ? '启用罗盘和相机' : '启用罗盘');
+
+    var camBtn = A.h('button', {
+      class: 'btn sm ghost', type: 'button',
+      on: {
+        click: function () {
+          if (vf.state() === 'on') { vf.stop(); }
+          else { vf.start(); }
+          syncCamBtn();
+        }
+      }
+    }, '相机');
+
+    function syncCamBtn() {
+      var on = vf.state() === 'on';
+      camBtn.textContent = on ? '相机：开' : '相机：关';
+      camBtn.className = 'btn sm ' + (on ? 'primary' : 'ghost');
+    }
+    syncCamBtn();
 
     var autoBtn = A.h('button', {
       class: 'btn sm', type: 'button',
@@ -367,11 +388,9 @@
       on: { click: manualCapture }
     }, '记录此点');
 
-    var compassBox = A.h('div', { class: 'card' }, [
-      A.h('div', { class: 'rose-wrap' }, [
-        rose.node,
-        A.h('div', { class: 'rose-center' }, [azOut, elOut, azLab])
-      ]),
+    // 第一屏就是"瞄准 + 进度"：取景器、进度、缺口提示、三个按钮
+    var aimBox = A.h('div', { class: 'card' }, [
+      vf.node,
       A.h('div', { class: 'progress' }, progressBar),
       A.h('div', {
         class: 'card-head',
@@ -379,7 +398,16 @@
       }, [A.h('h2', { text: '采样进度' }), countOut]),
       missOut,
       speedHint,
-      A.h('div', { class: 'btn-bar', style: 'margin-top:12px' }, [autoBtn, markBtn])
+      A.h('div', { class: 'btn-bar', style: 'margin-top:12px' }, [autoBtn, markBtn, camBtn])
+    ]);
+
+    // 罗盘玫瑰退到第二张卡：它是用来看"哪些方向采过了"，不是用来瞄准的
+    var compassBox = A.h('div', { class: 'card' }, [
+      A.h('div', { class: 'card-head' }, [A.h('h2', { text: '已采覆盖' })]),
+      A.h('div', { class: 'rose-wrap' }, [
+        rose.node,
+        A.h('div', { class: 'rose-center' }, [azOut, elOut, azLab])
+      ])
     ]);
 
     var stripBox = A.h('div', { class: 'card' }, [
@@ -416,6 +444,7 @@
 
     view.appendChild(statusNote);
     view.appendChild(A.h('div', { id: 'enable-slot' }, enableBtn));
+    view.appendChild(aimBox);
     view.appendChild(compassBox);
     view.appendChild(stripBox);
     view.appendChild(gridBox);
@@ -476,16 +505,28 @@
       }
     }
 
-    function enableCompass() {
-      // 必须在这个点击回调里同步调 requestPermission()，不能放到别处
-      C.request().then(function (st) {
+    function enableSensors() {
+      // 两个权限都必须在**这一次点击**里同步发起。
+      // 如果先 await 罗盘权限再去要相机，用户手势已经过期，iOS 会拒掉第二个。
+      var pCompass = C.request();
+      var pCamera = VF.supported() ? vf.start() : Promise.resolve('unsupported');
+
+      pCompass.then(function (st) {
         refreshStatus();
         if (st === 'granted') {
           C.start(onReading, function () { refreshStatus(); });
           requestWakeLock();
-          A.toast('罗盘已启用，慢慢转一圈');
+          A.toast('罗盘已启用，把准星压在天际线上慢慢转一圈');
         } else {
           A.toast(C.explain(st), 4200);
+        }
+      });
+
+      pCamera.then(function (cs) {
+        syncCamBtn();
+        // 相机拿不到不影响采集，只是对准全靠手感，所以只提示不阻断
+        if (cs !== 'on' && cs !== 'unsupported') {
+          A.toast(VF.explain(cs), 4500);
         }
       });
     }
@@ -624,6 +665,18 @@
       azLab.textContent = heading === null ? '方位 / 仰角'
         : A.compassName(heading) + ' · 扇区 ' + H.azimuthOf(H.sectorFor(heading)) + '°';
 
+      // 取景器 HUD
+      var curSec = dwell ? dwell.sector : (heading === null ? -1 : H.sectorFor(heading));
+      var captured = curSec >= 0 && typeof profile[curSec] === 'number';
+      vf.setReadout(heading, live ? live.elevation : null);
+      vf.setDwell(frac, captured);
+      if (heading === null) {
+        vf.setFooter('把准星压在天际线上');
+      } else {
+        vf.setFooter('扇区 ' + H.azimuthOf(curSec) + '° ' + A.compassName(heading) +
+                     (captured ? ' · 已采，停住可覆盖' : ' · 停住约半秒即记下'));
+      }
+
       var n = H.count(profile);
       countOut.textContent = n + ' / ' + H.SECTORS;
       progressBar.style.width = (n / H.SECTORS * 100) + '%';
@@ -679,6 +732,7 @@
       clearInterval(tick);
       document.removeEventListener('visibilitychange', onVisible);
       C.stop();
+      vf.stop();
       if (wakeLock && wakeLock.release) { wakeLock.release().catch(function () {}); }
       wakeLock = null;
       flushSave();

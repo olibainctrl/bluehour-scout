@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>蓝调勘景仪 — 算法测试</title>
+<!-- 取景器的准星几何断言要量真实布局，必须加载主样式；
+     放在下面的内联 <style> 之前，测试页自己的配色仍然优先。 -->
+<link rel="stylesheet" href="css/app.css">
 <style>
 :root{
   --bg:#07070a; --bg-raise:#0f0f14; --bg-row:#121218;
@@ -83,7 +86,7 @@ td.ok{color:var(--pass)} td.bad{color:var(--fail)}
 
 <h1>蓝调勘景仪 · 算法测试</h1>
 <p class="sub">
-  太阳位置（NOAA 算法本地实现）、时区工具、地平线遮挡剖面、罗盘瞄准几何与界面几何约束的单元测试。全部本地计算，不联网。<br>
+  太阳位置（NOAA 算法本地实现）、时区工具、地平线遮挡剖面、罗盘瞄准几何、取景器与界面几何约束的单元测试。全部本地计算，不联网。<br>
   主基准 <a href="https://gml.noaa.gov/grad/solcalc/" target="_blank" rel="noopener">NOAA Solar Calculator</a>，容差 ±60 秒 ·
   交叉参考 <a href="https://geodesyapps.ga.gov.au/sunrise" target="_blank" rel="noopener">Geoscience Australia</a>，容差 ±120 秒
 </p>
@@ -111,12 +114,14 @@ td.ok{color:var(--pass)} td.bad{color:var(--fail)}
 <script src="js/core/horizon.js"></script>
 <script src="js/ui/compass.js"></script>
 <script src="js/ui/app.js"></script>
+<script src="js/ui/viewfinder.js"></script>
 <script src="js/ui/horizon-ui.js"></script>
 <script src="js/test/harness.js"></script>
 <script src="js/test/solar.test.js"></script>
 <script src="js/test/horizon.test.js"></script>
 <script src="js/test/compass.test.js"></script>
 <script src="js/test/ui-geometry.test.js"></script>
+<script src="js/test/viewfinder.test.js"></script>
 <script>
 (function () {
   'use strict';
