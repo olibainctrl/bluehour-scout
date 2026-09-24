@@ -59,8 +59,13 @@
 
       view.appendChild(buildAppearance());
 
-      view.appendChild(A.h('p', { class: 'section-title', text: '摄影机' }));
-      view.appendChild(A.h('div', { class: 'nav-list' }, [cameraRow()]));
+      view.appendChild(A.h('p', { class: 'section-title', text: '摄影机 · ' + s.cameras.length + ' 台' }));
+      var camList = A.h('div', { class: 'nav-list' });
+      s.cameras.forEach(function (C, i) { camList.appendChild(cameraRow(C, i)); });
+      camList.appendChild(addRow('加一台摄影机', function () {
+        editCamera(null, s.cameras.length);
+      }));
+      view.appendChild(camList);
 
       view.appendChild(A.h('p', { class: 'section-title', text: '镜头 · ' + s.lenses.length + ' 支' }));
       var lensList = A.h('div', { class: 'nav-list' });
@@ -170,23 +175,37 @@
     }
 
     // -------------------------------------------------------- 摄影机
+    //
+    // 和镜头、灯具一样是个列表，选一台当前在用的。帧率和快门角度跟着机身走——
+    // B 机升格拍 50fps 的时候切过去，时间轴的 T 档就按 1/100 秒算。
 
-    function cameraRow() {
-      var c = s.camera;
-      var t = E.shutterSeconds(c.shutterAngle, c.fps);
-      return row(c.name,
-        'ISO ' + c.isoLow + ' / ' + c.isoHigh + ' · ' + c.fps + 'fps · ' + c.shutterAngle + '°' +
-        (t ? ' · 1/' + Math.round(1 / t) + 's' : ''),
-        editCamera);
+    function isoText(C) {
+      return (C.isoHigh && C.isoHigh !== C.isoLow)
+        ? 'ISO ' + C.isoLow + ' / ' + C.isoHigh
+        : 'ISO ' + C.isoLow + '（单原生）';
     }
 
-    function editCamera() {
-      var c = s.camera;
-      var nameIn = A.h('input', { type: 'text', value: c.name, maxlength: 80 });
-      var isoLo = A.numInput({ value: c.isoLow, integer: true, onInput: preview });
-      var isoHi = A.numInput({ value: c.isoHigh, integer: true, onInput: preview });
-      var fps = A.numInput({ value: c.fps, onInput: preview });
-      var ang = A.numInput({ value: c.shutterAngle, onInput: preview });
+    function cameraRow(C, i) {
+      var cur = s.selectedCamera === i;
+      var t = E.shutterSeconds(C.shutterAngle, C.fps);
+      return row(C.name,
+        isoText(C) + ' · ' + C.fps + 'fps · ' + C.shutterAngle + '°' +
+        (t ? ' · 1/' + Math.round(1 / t) + 's' : ''),
+        function () { editCamera(C, i); },
+        cur ? A.h('span', { class: 'badge ok', text: '在用' }) : null);
+    }
+
+    function editCamera(C, i) {
+      var isNew = !C;
+      // 新加的一台：帧率和快门角度先照着当前在用的那台填，通常是一样的
+      var base = C || s.camera || St.DEFAULT_CAMERA;
+      var nameIn = A.h('input', { type: 'text', value: C ? C.name : '', maxlength: 80,
+                                  placeholder: '例如 Sony FX3' });
+      var isoLo = A.numInput({ value: C ? C.isoLow : null, integer: true, placeholder: '例如 800' });
+      var isoHi = A.numInput({ value: (C && C.isoHigh !== C.isoLow) ? C.isoHigh : null,
+                               integer: true, placeholder: '单原生可不填' });
+      var fps = A.numInput({ value: base.fps, onInput: preview });
+      var ang = A.numInput({ value: base.shutterAngle, onInput: preview });
       var out = A.h('div', { class: 'hint' });
       function preview() {
         if (!fps || !ang) { return; }
@@ -196,8 +215,13 @@
       }
       preview();
 
+      var actions = [{ label: '取消', value: null, kind: 'ghost' }];
+      if (!isNew) { actions.unshift({ label: '删除', value: 'del', kind: 'danger' }); }
+      actions.push({ label: isNew ? '添加' : '保存', value: 'save', kind: 'primary' });
+
       A.sheet({
-        title: '摄影机',
+        title: isNew ? '加一台摄影机' : '摄影机',
+        sub: '双原生 ISO 的机器两档都填；只有一个原生 ISO 的，高档留空就行。',
         dismissValue: null,
         body: A.h('div', null, [
           field('机型', nameIn),
@@ -207,19 +231,42 @@
           A.h('div', { class: 'row' }, [
             field('帧率（fps）', fps.node), field('快门角度（度）', ang.node)
           ]),
-          out
+          out,
+          (!isNew && s.selectedCamera !== i) ? A.h('button', {
+            class: 'btn sm', type: 'button', style: 'margin-top:12px',
+            on: { click: function () { s.selectedCamera = i; save(); A.toast('已设为当前在用'); } }
+          }, '设为当前在用') : null
         ]),
-        actions: [
-          { label: '取消', value: null, kind: 'ghost' },
-          { label: '保存', value: 'save', kind: 'primary' }
-        ]
+        actions: actions
       }).then(function (v) {
+        if (v === 'del') {
+          // 时间轴总得有一台机器可算，最后一台不让删
+          if (s.cameras.length <= 1) { A.toast('至少要保留一台摄影机', 2600); return; }
+          return A.confirm('删除「' + C.name + '」？', '这台摄影机会从列表里去掉。', '删除', 'danger')
+            .then(function (ok) {
+              if (!ok) { return; }
+              s.cameras.splice(i, 1);
+              if (s.selectedCamera === i) { s.selectedCamera = 0; }
+              else if (s.selectedCamera > i) { s.selectedCamera--; }
+              save();
+            });
+        }
         if (v !== 'save') { return; }
-        c.name = nameIn.value.trim() || c.name;
-        if (isoLo.value() > 0) { c.isoLow = isoLo.value(); }
-        if (isoHi.value() > 0) { c.isoHigh = isoHi.value(); }
-        if (fps.value() > 0) { c.fps = fps.value(); }
-        if (ang.value() > 0 && ang.value() <= 360) { c.shutterAngle = ang.value(); }
+        var name = nameIn.value.trim();
+        if (!name) { A.toast('没填机型'); return; }
+        var lo = isoLo.value();
+        if (!(lo > 0)) { A.toast('原生 ISO 低档没填'); return; }
+        var hi = isoHi.value();
+        var f = fps.value(), a = ang.value();
+        if (!(f > 0)) { A.toast('帧率无效'); return; }
+        if (!(a > 0 && a <= 360)) { A.toast('快门角度要在 1–360 之间'); return; }
+        var entry = { name: name, isoLow: lo, isoHigh: hi > 0 ? hi : lo, fps: f, shutterAngle: a };
+        if (isNew) {
+          s.cameras.push(entry);
+          if (s.cameras.length === 1) { s.selectedCamera = 0; }
+        } else {
+          s.cameras[i] = entry;
+        }
         save();
       });
     }

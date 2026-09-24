@@ -190,8 +190,19 @@
    */
   function chooseISO(ev100, isoLow, isoHigh, shutterSec, maxAperture) {
     var nLow = tStop(ev100, isoLow, shutterSec);
-    var nHigh = tStop(ev100, isoHigh, shutterSec);
     if (nLow === null) { return null; }
+    var hasLens = maxAperture !== null && maxAperture !== undefined;
+
+    // 单原生 ISO 的机器（两档填一样，或高档没填）：没得切，
+    // 不能像双原生那样报"已切到高原生 ISO"
+    if (!(isoHigh > 0) || isoHigh === isoLow) {
+      return {
+        iso: isoLow, n: nLow, nearest: nearestStop(nLow),
+        overLens: hasLens && nLow < maxAperture,
+        switched: false
+      };
+    }
+    var nHigh = tStop(ev100, isoHigh, shutterSec);
 
     var canLow = (maxAperture === null || maxAperture === undefined) ? true : nLow >= maxAperture;
     var iso = canLow ? isoLow : isoHigh;

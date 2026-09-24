@@ -251,11 +251,32 @@
       lensSel.value = String(settings.selectedLens);
       lensSel.addEventListener('change', function () {
         settings.selectedLens = parseInt(lensSel.value, 10);
-        St.save(settings).then(function () {
+        St.save(settings).then(function (saved) {
           if (disposed) { return; }
+          settings = saved;
           rebuild();
         });
       });
+
+      // 只有一台摄影机时不占这一行
+      var camRow = null;
+      if (settings.cameras && settings.cameras.length > 1) {
+        var camSel = A.h('select', { 'aria-label': '当前机身' });
+        settings.cameras.forEach(function (C, i) {
+          camSel.appendChild(A.h('option', { value: i }, C.name + ' · ' + C.fps + 'fps ' + C.shutterAngle + '°'));
+        });
+        camSel.value = String(settings.selectedCamera);
+        camSel.addEventListener('change', function () {
+          settings.selectedCamera = parseInt(camSel.value, 10);
+          // 必须拿规整后的设置：settings.camera 是按 selectedCamera 派生出来的
+          St.save(settings).then(function (saved) {
+            if (disposed) { return; }
+            settings = saved;
+            rebuild();
+          });
+        });
+        camRow = A.h('div', { class: 'shoot-row' }, [A.h('span', { class: 'k', text: '机身' }), camSel]);
+      }
 
       var budgetOut = A.h('div', { class: 'budget' });
       function syncBudget() {
@@ -286,6 +307,7 @@
 
       var t = result.shutterSec;
       return A.h('div', { class: 'card shoot' }, [
+        camRow,
         A.h('div', { class: 'shoot-row' }, [
           A.h('span', { class: 'k', text: '镜头' }),
           lensSel
@@ -333,51 +355,101 @@
 
     // -------------------------------------------------------- 表格
 
+    /**
+     * 逐分钟表。
+     *
+     * 蓝调窗口怎么突出又不破坏暗适应：不是把窗口行调亮，而是**把窗口外的行压暗**。
+     * 窗口内保持正常亮度，左边一条细琥珀竖线，开始和结束各插一行标记。
+     * 整张表的总亮度是下降的，窗口反而跳出来了。
+     *
+     * 窗口里每一行真正要用的那个数——按当前镜头自动选定的 ISO 下的 T 档——
+     * 加粗成琥珀色。需要切原生 ISO、镜头开不到了，都在发生的那一分钟插一行标出来。
+     */
     function buildTable() {
-      var thead = A.h('tr', null, [
-        A.h('th', { class: 't', text: '时间' }),
-        A.h('th', { text: '高度' }),
-        A.h('th', { text: '方位' }),
-        A.h('th', { text: 'EV100' }),
-        A.h('th', { text: 'T@' + result.isoLow }),
-        A.h('th', { text: 'T@' + result.isoHigh }),
-        A.h('th', { text: '色温' })
-      ]);
-      var tbody = A.h('tbody');
-      var table = A.h('table', { class: 'tl' }, [A.h('thead', null, thead), tbody]);
+      var dual = result.isoHigh !== result.isoLow;
+      var ncol = dual ? 7 : 6;
 
-      result.rows.forEach(function (w, i) {
-        var cls = [];
-        if (w.inBlue) { cls.push('blue'); }
+      // 列序：T 档紧跟时间。它们是真正要拨到镜头上的数，
+      // 原来排在高度、方位、EV 之后，窄屏上切到 ISO 3200 那一列就被挤出屏幕右边了
+      var heads = [
+        A.h('th', { class: 't', text: '时间' }),
+        A.h('th', { text: 'T@' + result.isoLow })
+      ];
+      if (dual) { heads.push(A.h('th', { text: 'T@' + result.isoHigh })); }
+      heads.push(A.h('th', { text: 'EV100' }));
+      heads.push(A.h('th', { text: '高度' }));
+      heads.push(A.h('th', { text: '方位' }));
+      heads.push(A.h('th', { text: '色温' }));
+
+      var tbody = A.h('tbody');
+      var table = A.h('table', { class: 'tl' }, [A.h('thead', null, A.h('tr', null, heads)), tbody]);
+      var rows = result.rows, st = result.stats;
+
+      function marker(kind, time, text) {
+        tbody.appendChild(A.h('tr', { class: 'mk mk-' + kind }, [
+          A.h('td', { class: 't', text: time }),
+          A.h('td', { colspan: ncol - 1, text: text })
+        ]));
+      }
+
+      rows.forEach(function (w, i) {
+        var prev = i > 0 ? rows[i - 1] : null;
+        var next = i < rows.length - 1 ? rows[i + 1] : null;
+
+        // —— 进入窗口
+        if (w.inBlue && (!prev || !prev.inBlue)) {
+          marker('start', st.blueStart !== null ? Z.formatTime(st.blueStart, rec.tz) : Z.formatTime(w.ms, rec.tz),
+                 '▾ 蓝调开始 · 太阳 ' + A.deg(st.blueUpper, 0));
+        }
+        // —— 需要切原生 ISO 的那一分钟
+        if (dual && prev && prev.auto && w.auto && prev.auto.iso !== w.auto.iso) {
+          marker('iso', Z.formatTime(w.ms, rec.tz),
+                 '▸ 切到 ISO ' + w.auto.iso + (result.lens ? '（' + result.lens.name + ' 开到头了）' : ''));
+        }
+        // —— 连高原生 ISO 也开不到了
+        if (w.auto && w.auto.overLens && !(prev && prev.auto && prev.auto.overLens)) {
+          marker('lens', Z.formatTime(w.ms, rec.tz),
+                 '▸ 超出 T' + (result.lens ? result.lens.maxAperture : '') + '，这支镜头从这里开始拍不了');
+        }
+
+        var cls = [w.inBlue ? 'blue' : 'out'];
         if (w.occluded) { cls.push('occ'); }
         if (w.isRealSunset) { cls.push('rs'); }
         if (w.lights.length) { cls.push('lit'); }
         if (i === nowIndex) { cls.push('now'); }
 
+        var pickIso = w.auto ? w.auto.iso : null;
         function stopCell(x) {
-          var txt = x.n === null ? '—'
-            : (x.under ? '＜T' : x.over ? '＞T' : 'T') + x.nearest;
-          return A.h('td', { class: (x.under || x.over) ? 'over' : null, text: txt });
+          var txt = x.n === null ? '—' : (x.under ? '＜T' : x.over ? '＞T' : 'T') + x.nearest;
+          var c = [];
+          if (x.under || x.over) { c.push('over'); }
+          if (pickIso !== null && x.iso === pickIso && x.n !== null) { c.push('pick'); }
+          return A.h('td', { class: c.length ? c.join(' ') : null, text: txt });
         }
 
-        var tr = A.h('tr', {
-          class: cls.length ? cls.join(' ') : null,
-          on: { click: function () { recordSheet(w); } }
-        }, [
+        var cells = [
           A.h('td', { class: 't' }, [
             Z.formatTime(w.ms, rec.tz),
-            w.occluded ? A.h('span', { style: 'color:var(--ink-faint);margin-left:4px', text: '●' }) : null,
-            w.lights.length ? A.h('span', { style: 'color:var(--ok);margin-left:4px', text: '◆' }) : null
+            w.occluded ? A.h('span', { class: 'occ-dot', text: '●' }) : null,
+            w.lights.length ? A.h('span', { class: 'lit-dot', text: '◆' }) : null
           ]),
-          A.h('td', { class: 'alt', text: A.deg(w.altitude) }),
-          A.h('td', { text: Math.round(w.azimuth) + '°' }),
-          A.h('td', { text: w.ev100.toFixed(2) }),
-          stopCell(w.low),
-          stopCell(w.high),
-          A.h('td', { class: w.cctInRange ? null : 'dim', text: Math.round(w.cct) + 'K' })
-        ]);
+          stopCell(w.low)
+        ];
+        if (dual) { cells.push(stopCell(w.high)); }
+        cells.push(A.h('td', { text: w.ev100.toFixed(2) }));
+        cells.push(A.h('td', { class: 'alt', text: A.deg(w.altitude) }));
+        cells.push(A.h('td', { text: Math.round(w.azimuth) + '°' }));
+        cells.push(A.h('td', { class: w.cctInRange ? null : 'dim', text: Math.round(w.cct) + 'K' }));
+
+        var tr = A.h('tr', { class: cls.join(' '), on: { click: function () { recordSheet(w); } } }, cells);
         rowEls.push(tr);
         tbody.appendChild(tr);
+
+        // —— 离开窗口
+        if (w.inBlue && (!next || !next.inBlue)) {
+          marker('end', st.blueEnd !== null ? Z.formatTime(st.blueEnd, rec.tz) : Z.formatTime(w.ms, rec.tz),
+                 '▴ 蓝调结束 · 太阳 ' + A.deg(st.blueLower, 0));
+        }
       });
 
       tableWrap = A.h('div', { class: 'tl-wrap' }, table);
@@ -385,16 +457,17 @@
       return A.h('div', { class: 'card' }, [
         A.h('div', { class: 'card-head' }, [
           A.h('h2', { text: '逐分钟' }),
-          A.h('span', { class: 'meta', text: result.rows.length + ' 分钟' })
+          A.h('span', { class: 'meta', text: rows.length + ' 分钟' })
         ]),
         A.h('p', { class: 'hint', style: 'margin-top:0' }, '点任意一行可以记一个现场实测读数。'),
         tableWrap,
         A.h('div', { class: 'tl-legend' }, [
+          A.h('span', null, [A.h('i', { class: 'sw-win' }), '蓝调窗口（其余时段调暗）']),
+          A.h('span', null, [A.h('b', { class: 'sw-pick', text: 'T2.8' }), '要用的那一格']),
           A.h('span', null, [A.h('i', { class: 'sw-now' }), '现在']),
           A.h('span', null, [A.h('i', { class: 'sw-rs' }), '真实日落']),
-          A.h('span', null, [A.h('i', { class: 'sw-blue' }), '蓝调窗口']),
           A.h('span', null, ['● 被地平线挡住']),
-          result.stats.lights.length ? A.h('span', null, ['◆ 补光追平']) : null,
+          st.lights.length ? A.h('span', null, ['◆ 补光追平']) : null,
           A.h('span', null, ['＞T / ＜T 超出常用档位表'])
         ])
       ]);

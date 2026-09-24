@@ -209,10 +209,6 @@
       actions: [
         A.h('button', {
           class: 'btn sm ghost', type: 'button',
-          on: { click: function () { A.go('/settings'); } }
-        }, '设置'),
-        A.h('button', {
-          class: 'btn sm ghost', type: 'button',
           on: { click: showDataSheet }
         }, '数据')
       ]

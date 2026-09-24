@@ -283,6 +283,102 @@
     });
   });
 
+  // ==================================================== 摄影机列表
+
+  T.suite('边界：摄影机列表', function () {
+
+    T.test('旧数据（单个 camera 对象）自动迁成列表，已填参数不丢', function () {
+      var old = { camera: { name: '旧机器', isoLow: 800, isoHigh: 12800, fps: 25, shutterAngle: 172.8 } };
+      var s = Set.normalize(old);
+      T.equal(s.cameras.length, 1, '迁成只有一台的列表');
+      T.equal(s.cameras[0].name, '旧机器', '名字保留');
+      T.equal(s.cameras[0].isoHigh, 12800, '高原生 ISO 保留');
+      T.equal(s.cameras[0].shutterAngle, 172.8, '快门角度保留');
+      T.equal(s.selectedCamera, 0, '选中第一台');
+      T.equal(s.camera.name, '旧机器', '派生的 camera 指向它');
+    });
+
+    T.test('多台摄影机时 camera 派生为当前选中的那台', function () {
+      var s = Set.normalize({
+        cameras: [
+          { name: 'A 机', isoLow: 400, isoHigh: 3200, fps: 24, shutterAngle: 180 },
+          { name: 'B 机', isoLow: 800, isoHigh: 12800, fps: 50, shutterAngle: 180 }
+        ],
+        selectedCamera: 1
+      });
+      T.equal(s.camera.name, 'B 机', '派生出 B 机');
+      T.equal(s.camera.fps, 50, 'B 机的帧率');
+      // cameras 和旧的 camera 同时存在时以列表为准（camera 只是派生出来的副本）
+      var s2 = Set.normalize({ cameras: s.cameras, selectedCamera: 0, camera: { name: '过期的副本' } });
+      T.equal(s2.camera.name, 'A 机', '忽略存盘里过期的 camera 副本');
+    });
+
+    T.test('selectedCamera 越界时回到第一台', function () {
+      var cams = [{ name: 'A', isoLow: 400, isoHigh: 3200, fps: 24, shutterAngle: 180 }];
+      [5, -1, 'x', null, undefined].forEach(function (v) {
+        T.equal(Set.normalize({ cameras: cams, selectedCamera: v }).selectedCamera, 0,
+                'selectedCamera=' + v + ' → 0');
+      });
+    });
+
+    T.test('空列表或全是垃圾时回到默认的一台', function () {
+      [[], [null, 3, 'x'], null].forEach(function (list, i) {
+        var s = Set.normalize({ cameras: list });
+        T.equal(s.cameras.length, 1, '第 ' + i + ' 种情况：至少有一台');
+        T.ok(s.camera && s.camera.fps > 0, '派生的 camera 可用');
+      });
+    });
+
+    T.test('单原生 ISO：高档不填就等于低档；写反了就对调', function () {
+      var one = Set.normalize({ cameras: [{ name: 'Alexa', isoLow: 800 }] }).camera;
+      T.equal(one.isoHigh, 800, '高档没填 → 等于低档');
+      var rev = Set.normalize({ cameras: [{ name: 'X', isoLow: 3200, isoHigh: 400 }] }).camera;
+      T.equal(rev.isoLow, 400, '写反了：低档对调回 400');
+      T.equal(rev.isoHigh, 3200, '高档对调回 3200');
+    });
+
+    T.test('单原生 ISO 的机器不报"已切到高原生 ISO"', function () {
+      var t = E.shutterSeconds(180, 24);
+      var r = E.chooseISO(1, 800, 800, t, 1.4);
+      T.ok(!r.switched, '没得切，switched 为 false');
+      T.equal(r.iso, 800, '始终用 ISO 800');
+      T.ok(r.overLens, '暗到开不到时照样报超限');
+      var r2 = E.chooseISO(1, 800, null, t, 1.4);
+      T.ok(!r2.switched, '高档为 null 时同样不切');
+    });
+
+    T.test('时间轴按选中那台的帧率算快门', function () {
+      var s = Set.normalize({
+        cameras: [
+          { name: 'A 机', isoLow: 400, isoHigh: 3200, fps: 24, shutterAngle: 180 },
+          { name: 'B 机', isoLow: 400, isoHigh: 3200, fps: 50, shutterAngle: 180 }
+        ],
+        selectedCamera: 1
+      });
+      var r = build('2026-06-21', rec(), s);
+      T.near(r.shutterSec, 1 / 100, 1e-12, '50fps / 180° → 1/100 秒', 's');
+      var a = build('2026-06-21', rec(), Set.normalize({ cameras: s.cameras, selectedCamera: 0 }));
+      T.ok(a.rows[60].low.n > r.rows[60].low.n,
+           '同一分钟 B 机快门更短，需要的光圈更大（T 值更小）：A ' + a.rows[60].low.n.toFixed(2) +
+           ' / B ' + r.rows[60].low.n.toFixed(2));
+    });
+
+    T.test('镜头删光之后就是空列表，不会冒出默认镜头', function () {
+      // 曾经的 bug：normalize 遇到空数组会退回六支默认镜头，
+      // 在设置里把镜头删光、一存盘，默认镜头又全回来了
+      var s = Set.normalize({ lenses: [], selectedLens: 3 });
+      T.equal(s.lenses.length, 0, '空列表照收');
+      T.isNull(s.selectedLens, '没有镜头时 selectedLens 为 null');
+      var junk = Set.normalize({ lenses: [{ name: '' }, null], selectedLens: 3 });
+      T.equal(junk.lenses.length, 0, '全是无效条目时也是空列表');
+      T.equal(Set.normalize({}).lenses.length, 6, '根本没有 lenses 字段时才用默认的六支');
+      T.equal(Set.normalize({ lenses: 'garbage' }).lenses.length, 6, 'lenses 不是数组时用默认');
+      var r = build('2026-06-21', rec(), s);
+      T.ok(r.ok, '没有镜头时时间轴照常能算');
+      T.isNull(r.lens, '只是不做光圈约束');
+    });
+  });
+
   // ==================================================== 退化记录
 
   T.suite('边界：退化的勘景记录', function () {

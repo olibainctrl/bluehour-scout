@@ -60,6 +60,8 @@
   --row-blue:#0d1017;
   --row-rs:#241b0c;
   --row-now:#2a2110;
+  --row-win:#0c0e13;         /* 窗口行底色，比 --bg-sunk 略提，面积大所以必须很暗 */
+  --win-stripe:#c98a2f;      /* 窗口行左侧的细竖线 */
   --calib-on-bg:#101a0d;
 
   /* 罗盘玫瑰与剖面展开图 */
@@ -124,6 +126,8 @@
   --row-blue:#e8edf6;
   --row-rs:#fbe8cc;
   --row-now:#ffe2b3;
+  --row-win:#fbf3e6;
+  --win-stripe:#b8741a;
   --calib-on-bg:#eef6ec;
 
   --g-empty:#ece6dc;
@@ -672,8 +676,16 @@ table.tl th.t,table.tl td.t{
 table.tl th.t{z-index:3;background:var(--th-bg)}
 table.tl tr:last-child td{border-bottom:none}
 
-table.tl tr.blue td{background:var(--row-blue)}
-table.tl tr.blue td.t{background:var(--row-blue)}
+/* 窗口外的行压暗：整张表的总亮度下降，窗口反而跳出来——暗适应友好 */
+table.tl tr.out td{color:var(--ink-faint)}
+table.tl tr.out td.dim{color:var(--ink-ghost)}
+/* 窗口内：正常亮度 + 略提的底色 + 时间格左侧一条细竖线 */
+table.tl tr.blue td{background:var(--row-win);color:var(--ink)}
+table.tl tr.blue td.t{background:var(--row-win);box-shadow:inset 3px 0 0 var(--win-stripe)}
+/* 要用的那一格：按当前镜头自动选定的 ISO 下的 T 档 */
+table.tl td.pick{font-weight:700}
+table.tl tr.blue td.pick{color:var(--amber)}
+table.tl tr.blue td.pick.over{color:var(--bad)}
 table.tl tr.occ td.alt{color:var(--ink-faint)}
 table.tl tr.rs td{background:var(--row-rs);color:var(--amber)}
 table.tl tr.rs td.t{background:var(--row-rs);color:var(--amber);font-weight:600}
@@ -776,7 +788,6 @@ table.tl tr:active td{background:var(--bg-row)}
 .sw-hot{background:var(--g-hot)}
 .sw-now{background:var(--row-now);border:1px solid var(--amber-edge)}
 .sw-rs{background:var(--row-rs)}
-.sw-blue{background:var(--row-blue);border:1px solid var(--line)}
 
 
 /* 新版本提示条 */
@@ -905,3 +916,27 @@ button.calib:active{background:var(--bg-row)}
 /* 「加一支」那一行 */
 .nav-row.add .t{color:var(--amber);font-size:15px}
 .nav-row .badge{margin-right:2px}
+
+
+/* 表格里插的标记行：蓝调开始 / 结束、切原生 ISO、镜头开不到 */
+table.tl tr.mk td{
+  padding:6px 8px;background:var(--bg-sunk);text-align:left;white-space:nowrap;
+  font:600 11px/1.3 var(--sans);letter-spacing:.02em;color:var(--amber);
+  border-bottom:1px solid var(--amber-edge);
+}
+table.tl tr.mk td.t{font-family:var(--mono);box-shadow:inset 3px 0 0 var(--win-stripe);background:var(--bg-sunk)}
+table.tl tr.mk-end td{border-bottom:1px solid var(--line);border-top:1px solid var(--amber-edge)}
+table.tl tr.mk-end td.t{box-shadow:none}
+table.tl tr.mk-iso td{color:var(--warn);border-bottom-color:var(--warn-edge)}
+table.tl tr.mk-iso td.t{box-shadow:inset 3px 0 0 var(--warn)}
+table.tl tr.mk-lens td{color:var(--bad);border-bottom-color:var(--bad-edge)}
+table.tl tr.mk-lens td.t{box-shadow:inset 3px 0 0 var(--bad)}
+table.tl tr.mk:active td{background:var(--bg-sunk)}
+
+/* 时间格里的小符号 */
+table.tl .occ-dot{color:var(--ink-faint);margin-left:4px}
+table.tl .lit-dot{color:var(--ok);margin-left:4px}
+
+/* 图例 */
+.sw-win{background:var(--row-win);box-shadow:inset 3px 0 0 var(--win-stripe);border:1px solid var(--line)}
+.tl-legend .sw-pick{font:700 11px/1 var(--mono);color:var(--amber);margin-right:5px}

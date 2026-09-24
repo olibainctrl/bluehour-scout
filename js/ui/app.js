@@ -86,6 +86,7 @@
     cloud: '<path d="M7.2 18.2h10a4.1 4.1 0 0 0 .5-8.2 5.6 5.6 0 0 0-10.6-.9 4.6 4.6 0 0 0 .1 9.1z"/>',
     sunset: '<path d="M3 17.5h18M6.5 17.5a5.5 5.5 0 0 1 11 0M12 5v2.6M5 9.3l1.8 1.8M19 9.3l-1.8 1.8M3.5 21h17"/>',
     back: '<path d="M14.8 5.2 8 12l6.8 6.8"/>',
+    sliders: '<path d="M4 8h8.6M17.4 8H20M4 16h2.6M11.4 16H20"/><circle cx="15" cy="8" r="2.4"/><circle cx="9" cy="16" r="2.4"/>',
     plus: '<path d="M12 5.5v13M5.5 12h13"/>',
     minus: '<path d="M5.5 12h13"/>'
   };
@@ -430,8 +431,17 @@
       opts.sub ? h('span', { class: 'sub', text: opts.sub }) : null
     ]));
     var acts = (opts.actions || []).slice();
+    // 设置和日/夜切换每一页都有；只在设置页自己那里不放设置按钮
+    if (currentPath() !== '/settings') { acts.push(settingsButton()); }
     acts.push(themeButton());
     topbarEl.appendChild(h('div', { class: 'actions' }, acts));
+  }
+
+  function settingsButton() {
+    return h('button', {
+      class: 'theme-btn', type: 'button', 'aria-label': '项目设置', title: '项目设置',
+      on: { click: function () { go('/settings'); } }
+    }, icon('sliders', 19));
   }
 
   /** 日/夜切换按钮。每一页的顶栏右上角都有，一下就能切。 */

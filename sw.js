@@ -21,7 +21,7 @@
  */
 'use strict';
 
-var VERSION = 'v13';
+var VERSION = 'v14';
 var CACHE = 'bluehour-' + VERSION;
 var NET_TIMEOUT = 2000;   // 网络多久没响应就先用缓存顶上
 

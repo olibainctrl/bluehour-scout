@@ -16,17 +16,27 @@
   var KEY = 'project';
   var SCHEMA = 1;
 
+  var DEFAULT_CAMERA = {
+    name: 'Blackmagic Pyxis 6K',
+    isoLow: 400,          // 双原生 ISO 低档
+    isoHigh: 3200,        // 双原生 ISO 高档；单原生 ISO 的机器两档填一样
+    fps: 24,
+    shutterAngle: 180
+  };
+
+  function copyCamera(c) {
+    return { name: c.name, isoLow: c.isoLow, isoHigh: c.isoHigh, fps: c.fps, shutterAngle: c.shutterAngle };
+  }
+
   function defaults() {
-    return {
+    var d = {
       key: KEY,
       schema: SCHEMA,
-      camera: {
-        name: 'Blackmagic Pyxis 6K',
-        isoLow: 400,          // 双原生 ISO 低档
-        isoHigh: 3200,        // 双原生 ISO 高档
-        fps: 24,
-        shutterAngle: 180
-      },
+      // 摄影机和镜头、灯具一样是个列表，选一台当前在用的。
+      // 帧率和快门角度跟着机身走：B 机升格拍 50fps 的时候切过去就行。
+      cameras: [copyCamera(DEFAULT_CAMERA)],
+      selectedCamera: 0,
+      camera: null,         // 派生字段：当前在用的那台，见 normalize()
       // 光圈值按厂标预填，可能和实际 T 档有出入，随时可改
       lenses: [
         { name: 'Sigma 14-24mm F2.8', maxAperture: 2.8 },
@@ -45,6 +55,8 @@
       ],
       setups: 3
     };
+    d.camera = d.cameras[0];
+    return d;
   }
 
   function num(v, fallback, lo, hi) {
@@ -60,12 +72,23 @@
     var d = defaults();
     if (!input || typeof input !== 'object') { return d; }
 
-    var c = input.camera || {};
-    d.camera.name = typeof c.name === 'string' && c.name ? c.name.slice(0, 80) : d.camera.name;
-    d.camera.isoLow = num(c.isoLow, d.camera.isoLow, 1, 1000000);
-    d.camera.isoHigh = num(c.isoHigh, d.camera.isoHigh, 1, 1000000);
-    d.camera.fps = num(c.fps, d.camera.fps, 0.1, 1000);
-    d.camera.shutterAngle = num(c.shutterAngle, d.camera.shutterAngle, 1, 360);
+    // ---- 摄影机列表
+    // 早期版本只存了一个 camera 对象，没有 cameras 列表。碰到这种旧数据
+    // 就把它迁成只有一台的列表，已经填好的参数不丢。
+    var camIn = Array.isArray(input.cameras) ? input.cameras
+      : (input.camera && typeof input.camera === 'object') ? [input.camera]
+      : null;
+    if (camIn) {
+      var cs = [];
+      camIn.forEach(function (c) {
+        if (c && typeof c === 'object') { cs.push(normCamera(c)); }
+      });
+      if (cs.length) { d.cameras = cs; }
+    }
+    d.selectedCamera = clampIndex(input.selectedCamera, d.cameras.length, 0);
+    // 派生：当前在用的那台。core/timeline.js 读的是 settings.camera，
+    // 这样核心计算不用改；存盘时也留着它，旧版本的页面读得到。
+    d.camera = d.cameras[d.selectedCamera];
 
     if (Array.isArray(input.lenses)) {
       var ls = [];
@@ -76,10 +99,12 @@
           maxAperture: num(L.maxAperture, null, 0.5, 64)
         });
       });
-      if (ls.length) { d.lenses = ls; }
+      // 空列表也要照收。原来写的是 if (ls.length)，结果在设置里把镜头删光之后，
+      // 一存盘六支默认镜头又全冒出来了。没有镜头是合法状态（时间轴就不做光圈约束）。
+      // 只有 lenses 根本不是数组（缺失或垃圾）时才用默认列表。
+      d.lenses = ls;
     }
-    d.selectedLens = num(input.selectedLens, d.selectedLens, 0, d.lenses.length - 1);
-    if (d.selectedLens !== null) { d.selectedLens = Math.round(d.selectedLens); }
+    d.selectedLens = clampIndex(input.selectedLens, d.lenses.length, d.selectedLens);
 
     var b = input.blueRange || {};
     d.blueRange.upper = num(b.upper, d.blueRange.upper, -90, 90);
@@ -107,6 +132,29 @@
     d.key = KEY;
     d.schema = SCHEMA;
     return d;
+  }
+
+  /** 规整一台摄影机。单原生 ISO 的机器高档可以不填；两档写反了就对调。 */
+  function normCamera(c) {
+    var lo = num(c.isoLow, DEFAULT_CAMERA.isoLow, 1, 1000000);
+    var hi = num(c.isoHigh, null, 1, 1000000);
+    if (hi === null) { hi = lo; }
+    if (hi < lo) { var t = lo; lo = hi; hi = t; }
+    return {
+      name: (typeof c.name === 'string' && c.name.trim()) ? c.name.slice(0, 80) : DEFAULT_CAMERA.name,
+      isoLow: lo,
+      isoHigh: hi,
+      fps: num(c.fps, DEFAULT_CAMERA.fps, 0.1, 1000),
+      shutterAngle: num(c.shutterAngle, DEFAULT_CAMERA.shutterAngle, 1, 360)
+    };
+  }
+
+  /** 列表下标：越界或无效时退回 fallback（它也越界就退回 0）；空列表返回 null。 */
+  function clampIndex(v, len, fallback) {
+    if (!len) { return null; }
+    var n = num(v, null, 0, len - 1);
+    if (n === null) { n = (typeof fallback === 'number' && fallback >= 0 && fallback < len) ? fallback : 0; }
+    return Math.round(n);
   }
 
   var cached = null;
@@ -138,6 +186,7 @@
   return {
     KEY: KEY,
     SCHEMA: SCHEMA,
+    DEFAULT_CAMERA: DEFAULT_CAMERA,
     defaults: defaults,
     normalize: normalize,
     load: load,
