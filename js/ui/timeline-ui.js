@@ -86,6 +86,17 @@
 
       view.appendChild(buildDateBar());
 
+      if (R.needsNorthFix(rec)) {
+        view.appendChild(A.h('div', { class: 'note bad' }, [
+          A.h('b', { text: '剖面方位没扣磁偏角' }), A.h('br'),
+          '这条记录的罗盘数据是旧版本采的，真实日落可能算到了旁边的遮挡物上。回记录页按提示修正。',
+          A.h('div', { style: 'margin-top:10px' }, A.h('button', {
+            class: 'btn sm ghost', type: 'button',
+            on: { click: function () { A.go('/rec/' + rec.id); } }
+          }, '去修正'))
+        ]));
+      }
+
       if (!result.ok) {
         view.appendChild(A.h('div', { class: 'note bad', text: result.error }));
         return;

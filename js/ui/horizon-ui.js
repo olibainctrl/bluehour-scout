@@ -315,11 +315,16 @@
    * 渲染采样页。
    * @param {Object} rec 勘景记录（会就地修改 rec.horizon 并自动存盘）
    * @param {HTMLElement} view 容器
-   * @param {Object} [opts] opts.dock 由调用方提供底部导航（分步流程用）
+   * @param {Object} [opts] opts.dock 由调用方提供底部导航（分步流程用）；
+   *   opts.declination 当地磁偏角（罗盘磁北 → 真北）；opts.declinationText 显示用；
+   *   opts.blocked 不能用罗盘时的原因（没坐标、旧记录还没处理），给了就不启用罗盘
    * @returns {function} 清理函数
    */
   function render(rec, view, opts) {
     deps();
+    opts = opts || {};
+    var decl = typeof opts.declination === 'number' && isFinite(opts.declination) ? opts.declination : null;
+    var blocked = opts.blocked || null;
 
     var profile = rec.horizon;
     var live = null;
@@ -491,15 +496,15 @@
     function refreshStatus() {
       var st = C.state();
       var slot = view.querySelector('#enable-slot');
-      if (st === 'granted') {
+      if (blocked) {
+        slot.style.display = 'none';
+        setStatus('bad', blocked + '<br>也可以在下面的「逐扇区数值」里逐格手动输入。');
+      } else if (st === 'granted') {
         slot.style.display = 'none';
         var acc = live && live.accuracy !== null && live.accuracy !== undefined
-          ? '，磁偏差约 ±' + Math.round(live.accuracy) + '°' : '';
-        var srcNote = live && live.source === 'w3c'
-          ? '。<b>注意</b>：非 iOS 设备的绝对方位通常是<b>磁北</b>，悉尼磁偏角约 +12.7°E，' +
-            '可在记录页的「罗盘校正」里补偿。'
-          : '';
-        setStatus('ok', '罗盘已启用' + acc + srcNote);
+          ? '，罗盘自报误差约 ±' + Math.round(live.accuracy) + '°' : '';
+        setStatus('ok', '罗盘已启用，读数已按当地磁偏角 ' + (opts.declinationText || '') +
+                        '换成真北' + acc + '。');
       } else if (st === 'idle') {
         slot.style.display = '';
         setStatus('', 'iOS 需要你<b>主动点一下</b>才能打开方向传感器。');
@@ -510,6 +515,7 @@
     }
 
     function enableSensors() {
+      if (blocked) { A.toast(blocked, 4500); return; }
       // 两个权限都必须在**这一次点击**里同步发起。
       // 如果先 await 罗盘权限再去要相机，用户手势已经过期，iOS 会拒掉第二个。
       var pCompass = C.request();
@@ -519,6 +525,7 @@
         if (disposed) { C.stop(); return; }
         refreshStatus();
         if (st === 'granted') {
+          C.setDeclination(decl);
           C.start(onReading, function () { refreshStatus(); });
           requestWakeLock();
           A.toast('罗盘已启用，慢慢转一圈');
@@ -539,8 +546,20 @@
       });
     }
 
+    // 罗盘模块给的 heading 已经是真北；再加上记录页「罗盘校正」里的偏移量。
+    // 剖面原来不加这个偏移，和机位朝向用的不是同一个北——现在两边一致。
+    function corrected(r) {
+      var off = rec.headingOffset || 0;
+      if (!off || r.heading === null) { return r; }
+      var c = {};
+      for (var k in r) { if (Object.prototype.hasOwnProperty.call(r, k)) { c[k] = r[k]; } }
+      c.heading = H.norm360(r.heading + off);
+      return c;
+    }
+
     function onReading(r) {
       if (disposed) { return; }
+      r = corrected(r);
       live = r;
 
       if (r.heading === null || r.elevation === null) {
@@ -726,7 +745,9 @@
     document.addEventListener('visibilitychange', onVisible);
 
     // 已经授权过的话直接开始，不用再点一次
-    if (C.state() === 'granted' || (C.supported() && !C.needsPermission() && C.isSecure())) {
+    if (!blocked &&
+        (C.state() === 'granted' || (C.supported() && !C.needsPermission() && C.isSecure()))) {
+      C.setDeclination(decl);
       C.start(onReading, function () { refreshStatus(); });
       requestWakeLock();
     }

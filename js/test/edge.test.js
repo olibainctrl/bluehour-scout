@@ -530,6 +530,48 @@
       T.equal(p.shutterAngle, 180, '没填 → 180°');
     });
 
+    T.test('旧记录的罗盘数据：按磁北采的要提示，没有罗盘数据的直接算真北', function () {
+      var p = horizonFlat(1);
+      var legacy = Rec.normalize({ lat: -33.86, lon: 151.2, horizon: p, horizonSampledAt: 1 });
+      T.ok(Rec.needsNorthFix(legacy), '有剖面、没有 northRef → 要提示');
+      var compassHeading = Rec.normalize({ heading: 250, headingSource: 'compass' });
+      T.ok(Rec.needsNorthFix(compassHeading), '罗盘读的朝向 → 要提示');
+      var manual = Rec.normalize({ heading: 250, headingSource: 'manual' });
+      T.ok(!Rec.needsNorthFix(manual) && manual.northRef === 'true', '手动朝向、没剖面 → 直接算真北');
+      T.ok(!Rec.needsNorthFix(Rec.normalize({ horizon: p, horizonSampledAt: 1, northRef: 'true' })),
+           'northRef 已是真北 → 不提示');
+      T.equal(Rec.create().northRef, 'true', '新记录一开始就是真北');
+      T.ok(!Rec.needsNorthFix(Rec.normalize(Rec.create())), '新记录规整后仍是真北');
+    });
+
+    T.test('转回真北：剖面和罗盘朝向一起转，手动朝向不动', function () {
+      var p = H.empty();
+      p[25] = 2; p[26] = 6;
+      var r = Rec.normalize({ horizon: p, horizonSampledAt: 1, heading: 257.2, headingSource: 'compass' });
+      Rec.applyNorthFix(r, 12.8);
+      T.near(r.heading, 270, 1e-9, '罗盘朝向 257.2° → 270°', '°');
+      T.near(r.horizon[27], 4.88, 1e-9, '剖面跟着转', '°');
+      T.equal(r.northRef, 'true', '标成真北');
+      T.ok(!Rec.needsNorthFix(Rec.normalize(r)), '存盘再读出来不再提示');
+
+      var m = Rec.normalize({ horizon: p, horizonSampledAt: 1, heading: 100, headingSource: 'manual' });
+      Rec.applyNorthFix(m, 12.8);
+      T.equal(m.heading, 100, '手动填的朝向本来就是真北，不转');
+
+      var k = Rec.normalize({ horizon: p, horizonSampledAt: 1 });
+      Rec.keepNorth(k);
+      T.equal(k.horizon[25], 2, '选「不用改」时剖面原样');
+      T.ok(!Rec.needsNorthFix(Rec.normalize(k)), '之后不再提示');
+    });
+
+    T.test('没有磁偏角时拒绝转，不会把剖面转坏', function () {
+      var r = Rec.normalize({ horizon: horizonFlat(1), horizonSampledAt: 1 });
+      var threw = false;
+      try { Rec.applyNorthFix(r, null); } catch (e) { threw = true; }
+      T.ok(threw, '抛错');
+      T.ok(Rec.needsNorthFix(r), '仍然待处理');
+    });
+
     T.test('方位角 360 被归到 0', function () {
       var r = Rec.normalize({ heading: 360 });
       T.equal(r.heading, 0, '360° → 0°');

@@ -14,8 +14,13 @@
  * 2. iOS 13+ 必须先调 DeviceOrientationEvent.requestPermission()，
  *    而且**只能在用户手势的同步回调里**调，页面加载时调会直接抛 NotAllowedError。
  *    所以这个模块只暴露 request()，由界面上的「启用罗盘」按钮触发。
- * 3. iOS 的真北方位角在 event.webkitCompassHeading，不在 alpha；
+ * 3. iOS 的罗盘方位角在 event.webkitCompassHeading，不在 alpha；
  *    alpha 在 iOS 上是相对起始姿态的，不能当罗盘用。
+ *    注意 webkitCompassHeading 是**磁北**：WebKit 源码
+ *    （Source/WebCore/platform/ios/WebCoreMotionManager.mm）取的是
+ *    CLHeading 的 magneticHeading。安卓的 deviceorientationabsolute 同样参考磁北。
+ *    所以调用方要先用 setDeclination() 给当地磁偏角（core/geomag.js 算），
+ *    读数里的 heading 才是真北；raw 磁北读数另外放在 magnetic 里。
  * 4. 权限被拒绝、设备没有磁力计、或者事件始终不来，都要能降级到手动输入。
  */
 (function (root, factory) {
@@ -41,6 +46,7 @@
   var eventName = null;
   var noDataTimer = null;
   var gotAny = false;
+  var declination = null;       // 当地磁偏角（度，东偏为正）；null 表示没给，读数只能是磁北
 
   // 保证结果落在 [0,360)，见 core/horizon.js 里的同名函数
   function norm360(a) {
@@ -113,9 +119,9 @@
     return Math.asin(u) * DEG;
   }
 
-  /** 从事件里取真北方位角，取不到返回 null。 */
+  /** 从事件里取**磁北**方位角，取不到返回 null。换真北在 toTrue() 里做。 */
   function headingOf(ev) {
-    // iOS：webkitCompassHeading 就是真北方位角，顺时针 0–360。
+    // iOS：webkitCompassHeading 是磁北方位角，顺时针 0–360。
     // 负值（−1）表示罗盘还没校准好，这时候不能用。
     if (typeof ev.webkitCompassHeading === 'number' && ev.webkitCompassHeading >= 0) {
       return { heading: norm360(ev.webkitCompassHeading), absolute: true, src: 'ios' };
@@ -130,6 +136,21 @@
       return { heading: norm360(Math.atan2(v.e, v.n) * DEG), absolute: true, src: 'w3c' };
     }
     return null;
+  }
+
+  /** 磁北 → 真北：真北方位 = 磁北方位 + 磁偏角。没有磁偏角就原样返回。 */
+  function toTrue(magnetic, decl) {
+    if (magnetic === null || magnetic === undefined) { return null; }
+    if (typeof decl !== 'number' || !isFinite(decl)) { return magnetic; }
+    return norm360(magnetic + decl);
+  }
+
+  /**
+   * 设当地磁偏角（度，东偏为正），之后读数里的 heading 就是真北。
+   * stop() 时清掉，免得带到别的记录上。
+   */
+  function setDeclination(d) {
+    declination = (typeof d === 'number' && isFinite(d)) ? d : null;
   }
 
   function accuracyOf(ev) {
@@ -190,9 +211,13 @@
       var elev = elevationOf(ev.beta, ev.gamma);
       push(Date.now(), h ? h.heading : null, elev, accuracyOf(ev), h ? h.absolute : false);
 
+      // 平滑在磁北上做，最后整体加磁偏角——加常数和求圆周均值可交换
       var sm = smoothed();
       last = {
-        heading: sm.heading,
+        heading: toTrue(sm.heading, declination),
+        magnetic: sm.heading,
+        declination: declination,
+        trueNorth: declination !== null,
         elevation: sm.elevation,
         accuracy: sm.accuracy,
         absolute: sm.absolute,
@@ -234,8 +259,8 @@
   }
 
   /**
-   * 开始监听。会优先用 deviceorientationabsolute（Android 上才有真北），
-   * 没有就退回 deviceorientation。
+   * 开始监听。会优先用 deviceorientationabsolute（Android 上才有绝对方位），
+   * 没有就退回 deviceorientation。开始之前先 setDeclination()。
    * @param {function} readingCb 每次有新读数时调用
    * @param {function} [stateCb] 状态变化时调用
    */
@@ -283,6 +308,7 @@
     onReading = null;
     onState = null;
     buffer = [];
+    declination = null;
   }
 
   /** 人话版的状态说明，界面直接显示。 */
@@ -308,6 +334,9 @@
     stop: stop,
     reading: function () { return last; },
     explain: explain,
+    setDeclination: setDeclination,
+    declination: function () { return declination; },
+    toTrue: toTrue,
     // 导出供测试使用
     _cameraAxis: cameraAxis,
     _elevationOf: elevationOf,

@@ -524,7 +524,7 @@
     fx: fx, deg: deg, pad2: pad2, compassName: compassName, relTime: relTime,
     toast: toast, sheet: sheet, confirm: confirm, numberSheet: numberSheet,
     numInput: numInput, stepper: stepper,
-    route: route, go: go, back: back, start: start,
+    route: route, go: go, back: back, start: start, refresh: dispatch,
     setTop: setTop, setDock: setDock, currentPath: currentPath,
     download: download
   };

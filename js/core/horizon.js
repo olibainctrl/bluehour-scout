@@ -143,6 +143,29 @@
   }
 
   /**
+   * 整体旋转剖面：结果第 j 格 = 原剖面在 (azimuthOf(j) − deg) 方向上的值。
+   * 用来把旧版本按磁北采的剖面转回真北（deg = 磁偏角）。
+   * 只在相邻两格之间插值；落在缺口里就留空，不凭空补数。
+   */
+  function rotate(profile, deg) {
+    var out = empty();
+    if (!Array.isArray(profile)) { return out; }
+    if (typeof deg !== 'number' || !isFinite(deg)) { return profile.slice(0, SECTORS); }
+    for (var j = 0; j < SECTORS; j++) {
+      var p = norm360(azimuthOf(j) - deg) / SECTOR_DEG;
+      var i0 = Math.floor(p) % SECTORS, i1 = (i0 + 1) % SECTORS;
+      var f = p - Math.floor(p);
+      var a = profile[i0], b = profile[i1];
+      var v = null;
+      if (isSet(a) && isSet(b)) { v = a + f * (b - a); }
+      else if (isSet(a) && f <= 0.5) { v = a; }
+      else if (isSet(b) && f >= 0.5) { v = b; }
+      out[j] = v === null ? null : Math.round(v * 100) / 100;
+    }
+    return out;
+  }
+
+  /**
    * 太阳（或任何目标）是否被地平线挡住。
    * 按项目约定用日面中心比较，不加日面半径偏移。
    * @param {number} altitude 目标高度角（度）
@@ -191,6 +214,7 @@
 
   return {
     SECTORS: SECTORS,
+    rotate: rotate,
     SECTOR_DEG: SECTOR_DEG,
     empty: empty,
     normalize: normalize,

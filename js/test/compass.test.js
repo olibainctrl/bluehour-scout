@@ -107,6 +107,31 @@
     });
   });
 
+  T.suite('罗盘：磁北 → 真北', function () {
+
+    T.test('真北 = 磁北 + 磁偏角', function () {
+      T.near(C.toTrue(257.2, 12.8), 270, 1e-9, '悉尼：罗盘 257.2° 是真北 270°', '°');
+      T.near(C.toTrue(355, 12.8), 7.8, 1e-9, '跨过 0° 要绕回来', '°');
+      T.near(C.toTrue(5, -8), 357, 1e-9, '西偏（东京约 −8°）往回绕', '°');
+    });
+
+    T.test('没有磁偏角就原样返回磁北，没有读数就是 null', function () {
+      T.equal(C.toTrue(100, null), 100, '磁偏角 null');
+      T.equal(C.toTrue(100, NaN), 100, '磁偏角 NaN');
+      T.isNull(C.toTrue(null, 12.8), '读数 null');
+    });
+
+    T.test('setDeclination 只收有限数值，stop() 清掉', function () {
+      C.setDeclination(12.8);
+      T.equal(C.declination(), 12.8, '设上');
+      C.setDeclination('x');
+      T.isNull(C.declination(), '垃圾值 → null');
+      C.setDeclination(12.8);
+      C.stop();
+      T.isNull(C.declination(), 'stop() 之后不会带到别的记录上');
+    });
+  });
+
   T.suite('罗盘：权限与降级', function () {
 
     T.test('状态说明覆盖全部分支', function () {

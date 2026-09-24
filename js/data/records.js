@@ -54,6 +54,10 @@
       setups: null,        // 这个机位计划拍几个 setup（拍摄量核算用）
       fps: null,           // 帧率；按镜头设计，不是机器属性。null 表示按 24fps
       shutterAngle: null,  // 快门角度；null 表示按 180°
+      // 罗盘数据（剖面、罗盘读的机位朝向）以什么为北。'true' = 真北。
+      // v16 之前把手机罗盘的磁北读数直接当成了真北，那些记录这里是 null，
+      // 要让用户选一次：按磁偏角转回真北，或者确认不用改。见 needsNorthFix()
+      northRef: 'true',
       hasPhoto: false,
       createdAt: now,
       updatedAt: now
@@ -92,6 +96,44 @@
     r.hasPhoto = !!input.hasPhoto;
     r.createdAt = clampNum(input.createdAt, 0, 1e15) || Date.now();
     r.updatedAt = clampNum(input.updatedAt, 0, 1e15) || r.createdAt;
+    // 没有罗盘数据的旧记录没什么可转的，直接算真北
+    r.northRef = input.northRef === 'true' || !hasCompassData(r) ? 'true' : null;
+    return r;
+  }
+
+  // -------------------------------------------------------- 真北 / 磁北
+
+  /** 这条记录里有没有罗盘采来的数据（罗盘读的机位朝向，或者采过的剖面）。 */
+  function hasCompassData(r) {
+    deps();
+    return r.headingSource === 'compass' ||
+           (r.horizonSampledAt !== null && H.count(r.horizon) > 0);
+  }
+
+  /**
+   * 是不是旧版本按磁北采的、还没处理过的记录。
+   * 这种记录的剖面和罗盘朝向整体差了一个磁偏角（悉尼约 12.8°）。
+   */
+  function needsNorthFix(r) {
+    return !!r && r.northRef !== 'true' && hasCompassData(r);
+  }
+
+  /**
+   * 按磁偏角把剖面和罗盘读的机位朝向转回真北（真北 = 磁北 + 磁偏角）。
+   * 手动填的朝向标的就是真北，不动。就地修改并返回同一个对象。
+   */
+  function applyNorthFix(r, decl) {
+    deps();
+    if (typeof decl !== 'number' || !isFinite(decl)) { throw new Error('没有磁偏角，转不了'); }
+    r.horizon = H.rotate(r.horizon, decl);
+    if (r.headingSource === 'compass' && r.heading !== null) { r.heading = H.norm360(r.heading + decl); }
+    r.northRef = 'true';
+    return r;
+  }
+
+  /** 用户确认这条记录不用转（比如剖面是按真北手填的，或者已经重采过）。 */
+  function keepNorth(r) {
+    r.northRef = 'true';
     return r;
   }
 
@@ -240,6 +282,10 @@
     parseImport: parseImport,
     importRecords: importRecords,
     readiness: readiness,
+    hasCompassData: hasCompassData,
+    needsNorthFix: needsNorthFix,
+    applyNorthFix: applyNorthFix,
+    keepNorth: keepNorth,
     uid: uid
   };
 });

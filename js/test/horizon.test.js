@@ -228,4 +228,58 @@
       T.isNull(e.max, '空剖面 max 为 null');
     });
   });
+
+  T.suite('地平线剖面：整体旋转（磁北 → 真北）', function () {
+
+    function ramp() {
+      var p = H.empty();
+      for (var i = 0; i < 36; i++) { p[i] = i; }
+      return p;
+    }
+
+    T.test('转 0° 和 360° 不变', function () {
+      var p = ramp();
+      T.equal(JSON.stringify(H.rotate(p, 0)), JSON.stringify(p), '0°');
+      T.equal(JSON.stringify(H.rotate(p, 360)), JSON.stringify(p), '360°');
+    });
+
+    T.test('转 10° 正好挪一格：真北 j 格 = 原来 j−1 格', function () {
+      var r = H.rotate(ramp(), 10);
+      T.equal(r[5], 4, '第 5 格取原来的第 4 格');
+      T.equal(r[0], 35, '第 0 格绕回来取原来的第 35 格');
+    });
+
+    T.test('悉尼磁偏角 +12.8°：正西 270° 取原来 257.2° 方向的值', function () {
+      // 旧版本在磁北 257.2° 的方向上记下的，其实是真北 270° 的天际线
+      var p = H.empty();
+      p[25] = 2; p[26] = 6;                          // 磁北 250°、260°
+      var r = H.rotate(p, 12.8);
+      T.near(r[27], 2 + 0.72 * 4, 1e-9, '270° = 250° 和 260° 之间 72% 处', '°');
+    });
+
+    T.test('缺口不凭空补数', function () {
+      var p = H.empty();
+      p[10] = 5;                                     // 只有 100° 一格
+      var r = H.rotate(p, 12.8);
+      // 真北 110° ← 磁北 97.2°：落在 90°–100° 之间、离 100° 更近 → 取 5
+      T.equal(r[11], 5, '离已采的格子更近时照搬');
+      // 真北 120° ← 磁北 107.2°：落在 100°–110° 之间、离 110°（空）更近 → 空
+      T.isNull(r[12], '离空格更近时留空');
+      T.equal(H.count(r), 1, '一格进、一格出');
+    });
+
+    T.test('转过去再转回来，平滑剖面基本复原', function () {
+      var p = H.empty();
+      for (var i = 0; i < 36; i++) { p[i] = 3 + 2 * Math.sin(i * Math.PI / 18); }
+      var back = H.rotate(H.rotate(p, 12.8), -12.8);
+      var worst = 0;
+      for (var k = 0; k < 36; k++) { worst = Math.max(worst, Math.abs(back[k] - p[k])); }
+      T.ok(worst < 0.1, '往返最大偏差 ' + worst.toFixed(3) + '°（两次线性插值的平滑损失）');
+    });
+
+    T.test('脏输入', function () {
+      T.equal(H.count(H.rotate(null, 12)), 0, 'null → 空剖面');
+      T.equal(JSON.stringify(H.rotate(ramp(), NaN)), JSON.stringify(ramp()), '角度无效 → 原样');
+    });
+  });
 }());

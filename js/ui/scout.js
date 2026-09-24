@@ -23,11 +23,11 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
-  var A = null, R = null, H = null, C = null, Z = null, HU = null, TL = null, St = null;
+  var A = null, R = null, H = null, C = null, Z = null, HU = null, TL = null, St = null, Geo = null;
   function deps() {
     A = A || root.BH.App; R = R || root.BH.Records; H = H || root.BH.Horizon;
     C = C || root.BH.Compass; Z = Z || root.BH.Tz; HU = HU || root.BH.HorizonUI;
-    TL = TL || root.BH.Timeline; St = St || root.BH.Settings;
+    TL = TL || root.BH.Timeline; St = St || root.BH.Settings; Geo = Geo || root.BH.Geomag;
   }
 
   /**
@@ -390,6 +390,70 @@
     return function () { disposed = true; };
   }
 
+  // ---------------------------------------------------------- 磁偏角
+  //
+  // 手机罗盘（包括 iOS 的 webkitCompassHeading）给的是磁北，太阳方位角是真北。
+  // 罗盘读数一律按记录所在地的磁偏角（core/geomag.js，WMM2025）换成真北再用。
+
+  /** 这条记录所在地现在的磁偏角（度，东偏为正）；没有坐标时为 null。 */
+  function declinationFor(rec) {
+    if (rec.lat === null || rec.lon === null) { return null; }
+    return Geo.declination(rec.lat, rec.lon, Date.now());
+  }
+
+  function declText(d) {
+    return (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(1) + '°（' + (d >= 0 ? '东偏' : '西偏') + '）';
+  }
+
+  /**
+   * 旧记录的提示条：v16 之前把罗盘的磁北读数当成了真北。
+   * 让用户选一次——转回真北，或者确认不用改。选完整页重画，
+   * 因为罗盘入口在处理之前是关着的（免得新旧两种北混在一条剖面里）。
+   */
+  function northBanner(ctx) {
+    var rec = ctx.rec;
+    if (!R.needsNorthFix(rec)) { return null; }
+    var d = declinationFor(rec);
+    var what = [];
+    if (rec.horizonSampledAt !== null && H.count(rec.horizon) > 0) { what.push('地平线剖面'); }
+    if (rec.headingSource === 'compass') { what.push('机位朝向'); }
+
+    var node = A.h('div', { class: 'note bad' }, [
+      A.h('b', { text: '方位没扣磁偏角' }), A.h('br'),
+      '这条记录的' + what.join('和') + '是旧版本用罗盘采的，当时把手机罗盘的磁北读数当成了真北。' +
+      (d === null
+        ? '补上坐标之后才能算出这里的磁偏角并修正。'
+        : '这里的磁偏角是 ' + declText(d) + '，方位整体差了这么多，真实日落会算到旁边的遮挡物上。')
+    ]);
+    if (d === null) { return node; }
+
+    node.appendChild(A.h('div', { class: 'btn-bar', style: 'margin-top:10px' }, [
+      A.h('button', { class: 'btn sm ghost', type: 'button', on: { click: keep } }, '不用改'),
+      A.h('button', { class: 'btn sm primary', type: 'button', on: { click: fix } }, '转回真北')
+    ]));
+
+    function done(msg) {
+      ctx.scheduleSave();
+      ctx.flushSave().then(function () {
+        if (msg) { A.toast(msg); }
+        if (!ctx.isDisposed()) { A.refresh(); }
+      });
+    }
+    function fix() {
+      R.applyNorthFix(rec, d);
+      done('已按 ' + (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(1) + '° 转回真北');
+    }
+    function keep() {
+      A.confirm('不转？', '只有剖面和朝向是照真北手填的，或者已经重采过，才选这个。', '不用改', 'primary')
+        .then(function (ok) {
+          if (!ok) { return; }
+          R.keepNorth(rec);
+          done(null);
+        });
+    }
+    return node;
+  }
+
   // -------------------------------------------------- 载入记录的公共骨架
 
   /**
@@ -467,6 +531,9 @@
 
       var todo = STEPS.filter(function (s) { return s.required && !s.done(rec); });
       var next = firstTodo(rec);
+
+      var nb = northBanner(ctx);
+      if (nb) { view.appendChild(nb); }
 
       // 顶部状态：没填完就说还差什么；填完了就直接给下一个蓝调窗口——
       // 这时候"已经够用了"这句话没有信息量，几点去才有
@@ -810,6 +877,11 @@
 
     syncBig();
 
+    var nb = northBanner(ctx);
+    if (nb) { view.appendChild(nb); }
+
+    var decl = declinationFor(rec);
+
     view.appendChild(A.h('div', { class: 'card' }, [
       A.h('div', { class: 'readout' }, [bigN, bigU]),
       capEl,
@@ -832,14 +904,20 @@
           offNI.node
         ]),
         A.h('div', { class: 'hint' },
-          'iOS 的 webkitCompassHeading 给的是真北，通常填 0。' +
-          '安卓等平台拿到的多半是磁北，悉尼磁偏角约 +12.7°E。' +
-          '也可以对着已知方向的建筑物标定一下再填差值。')
+          '手机罗盘给的是磁北，读数已经按当地磁偏角' +
+          (decl === null ? '' : ' ' + declText(decl)) +
+          '自动换成真北，这里一般填 0。' +
+          '对着已知方向的建筑物标定过、发现手机还有固定偏差时，把差值填在这里。')
       ])
     ]));
 
     function readCompass() {
-      // requestPermission 必须在这个点击回调里同步调用
+      if (R.needsNorthFix(rec)) { A.toast('先处理上面「方位没扣磁偏角」的提示', 3500); return; }
+      if (decl === null) {
+        A.toast('先在第 1 步定位：罗盘读的是磁北，要按当地磁偏角换成真北', 4500);
+        return;
+      }
+      // requestPermission 必须在这个点击回调里同步调用（上面的检查都是同步的）
       C.request().then(function (st) {
         if (st !== 'granted') { A.toast(C.explain(st), 5000); return; }
         liveHeadingSheet();
@@ -850,7 +928,9 @@
       var n = A.h('span', { class: 'n dim', text: '—' });
       var u = A.h('span', { class: 'u', text: '' });
       var current = null;
+      var off = rec.headingOffset || 0;
 
+      C.setDeclination(decl);
       C.start(function (r) {
         if (r.heading === null) { return; }
         current = H.norm360(r.heading + (rec.headingOffset || 0));
@@ -866,7 +946,8 @@
         dismissValue: null,
         body: A.h('div', null, [
           A.h('div', { class: 'readout' }, [n, u]),
-          A.h('p', { class: 'hint', text: '读数已经加上了「罗盘校正」里填的偏移量。' })
+          A.h('p', { class: 'hint', text: '已按当地磁偏角 ' + declText(decl) + '换成真北' +
+            (off ? '，另加了罗盘校正 ' + (off > 0 ? '+' : '') + off + '°。' : '。') })
         ]),
         actions: [
           { label: '取消', value: null, kind: 'ghost' },
@@ -985,8 +1066,18 @@
         back: function () { ctx.flushSave().then(function () { A.go('/rec/' + rec.id); }); }
       });
       A.append(view, stepHeader(i));
+      var nb = northBanner(ctx);
+      if (nb) { view.appendChild(nb); }
+      var d = declinationFor(rec);
       var cleanup = HU.render(rec, view, {
-        dock: stepDock(rec, i, function () { return Promise.resolve(); })
+        dock: stepDock(rec, i, function () { return Promise.resolve(); }),
+        declination: d,
+        declinationText: d === null ? null : declText(d),
+        blocked: R.needsNorthFix(rec)
+          ? '先处理上面「方位没扣磁偏角」的提示，再用罗盘采。'
+          : d === null
+            ? '还没有坐标。罗盘读的是磁北，要按当地磁偏角换成真北，先回第 1 步定位。'
+            : null
       });
       ctx.onDispose(cleanup);
     });
