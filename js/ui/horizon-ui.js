@@ -79,33 +79,32 @@
 
     // 未采样扇区的暗底
     for (var i = 0; i < H.SECTORS; i++) {
-      var ghost = A.svg('path', { fill: '#131319', stroke: '#1f1f28', 'stroke-width': .5 });
+      var ghost = A.svg('path', { class: 'g-empty', 'stroke-width': .5 });
       ghosts.push(ghost); g.appendChild(ghost);
     }
     for (var j = 0; j < H.SECTORS; j++) {
-      var p = A.svg('path', { fill: '#c98a2f', 'fill-opacity': .85, stroke: 'none' });
+      var p = A.svg('path', { class: 'g-fill', 'fill-opacity': .85 });
       sectors.push(p); g.appendChild(p);
     }
 
     var ring = A.svg('circle', {
-      cx: CX, cy: CY, r: R_IN - 7, fill: 'none',
-      stroke: '#2a2a35', 'stroke-width': 3
+      cx: CX, cy: CY, r: R_IN - 7, class: 'g-ring', 'stroke-width': 3
     });
     var dwellArc = A.svg('circle', {
-      cx: CX, cy: CY, r: R_IN - 7, fill: 'none',
-      stroke: '#ffb340', 'stroke-width': 3, 'stroke-linecap': 'round',
+      cx: CX, cy: CY, r: R_IN - 7, class: 'g-arc',
+      'stroke-width': 3, 'stroke-linecap': 'round',
       transform: 'rotate(-90 ' + CX + ' ' + CY + ')',
       'stroke-dasharray': '0 999'
     });
-    var needle = A.svg('path', { fill: '#ffb340', stroke: 'none', 'fill-opacity': .95 });
-    var aimTick = A.svg('path', { fill: '#7fb069', stroke: 'none', 'fill-opacity': .9 });
+    var needle = A.svg('path', { class: 'g-needle', 'fill-opacity': .95 });
+    var aimTick = A.svg('path', { class: 'g-aim', 'fill-opacity': .9 });
 
     var labels = A.svg('g');
     [['北', 0], ['东', 90], ['南', 180], ['西', 270]].forEach(function (c) {
       var pt = px(c[1], LABEL_R);
       labels.appendChild(A.svg('text', {
         x: f2(pt[0]), y: f2(pt[1] + 4), 'text-anchor': 'middle',
-        fill: '#6b6459', 'font-size': 12, 'font-family': 'ui-monospace,Menlo,monospace'
+        class: 'g-label', 'font-size': 12, 'font-family': 'ui-monospace,Menlo,monospace'
       }, c[0]));
     });
 
@@ -136,7 +135,7 @@
           var r = R_IN + t * (R_OUT - R_IN);
           if (r < R_IN + 2) { r = R_IN + 2; }
           sectors[i].setAttribute('d', wedge(az, R_IN, r));
-          sectors[i].setAttribute('fill', isDwell ? '#ffb340' : '#c98a2f');
+          sectors[i].setAttribute('class', 'g-fill' + (isDwell ? ' dwell' : ''));
           sectors[i].setAttribute('fill-opacity', isDwell ? 1 : .85);
           ghosts[i].setAttribute('fill-opacity', .25);
         } else {
@@ -144,7 +143,7 @@
           ghosts[i].setAttribute('fill-opacity', 1);
         }
         ghosts[i].setAttribute('d', wedge(az, R_IN, R_OUT));
-        ghosts[i].setAttribute('stroke', isDwell ? '#4d3d1d' : '#1f1f28');
+        ghosts[i].setAttribute('class', 'g-empty' + (isDwell ? ' dwell' : ''));
       }
 
       if (heading === null || heading === undefined) {
@@ -183,12 +182,12 @@
 
   function createStrip() {
     deps();
-    var area = A.svg('path', { fill: '#c98a2f', 'fill-opacity': .22, stroke: 'none' });
-    var line = A.svg('path', { fill: 'none', stroke: '#c98a2f', 'stroke-width': 1.4 });
+    var area = A.svg('path', { class: 'g-area', 'fill-opacity': .22 });
+    var line = A.svg('path', { class: 'g-line', 'stroke-width': 1.4 });
     var gaps = A.svg('g');
     var dots = A.svg('g');
     var grid = A.svg('g');
-    var cursor = A.svg('line', { stroke: '#ffb340', 'stroke-width': 1.2, 'stroke-opacity': .9 });
+    var cursor = A.svg('line', { class: 'g-cursor', 'stroke-width': 1.2, 'stroke-opacity': .9 });
     var axis = A.svg('g');
 
     var node = A.svg('svg', {
@@ -215,11 +214,11 @@
         var yy = f2(y(lv, sc));
         grid.appendChild(A.svg('line', {
           x1: SPAD_L, y1: yy, x2: SPAD_L + 360, y2: yy,
-          stroke: lv === 0 ? '#2e2e3a' : '#1c1c24', 'stroke-width': 1,
+          class: lv === 0 ? 'g-axis' : 'g-grid', 'stroke-width': 1,
           'stroke-dasharray': lv === 0 ? '' : '2 4'
         }));
         grid.appendChild(A.svg('text', {
-          x: SPAD_L + 2, y: yy - 3, fill: '#4a453d', 'font-size': 8,
+          x: SPAD_L + 2, y: yy - 3, class: 'g-axis-label', 'font-size': 8,
           'font-family': 'ui-monospace,Menlo,monospace'
         }, (lv > 0 ? '+' : '') + lv + '°'));
       });
@@ -231,7 +230,7 @@
         spans.forEach(function (s) {
           gaps.appendChild(A.svg('rect', {
             x: f2(x(s[0])), y: STOP - 4, width: f2(s[1] - s[0]), height: SBOT - STOP + 8,
-            fill: '#0b0b10', 'fill-opacity': .72
+            class: 'g-gap', 'fill-opacity': .72
           }));
         });
       });
@@ -253,7 +252,7 @@
           if (typeof profile[i] !== 'number') { continue; }
           dots.appendChild(A.svg('circle', {
             cx: f2(x(H.azimuthOf(i))), cy: f2(y(profile[i], sc)), r: 1.9,
-            fill: '#ffb340'
+            class: 'g-dot'
           }));
         }
       }
@@ -261,11 +260,11 @@
       [[0, '北'], [90, '东'], [180, '南'], [270, '西'], [360, '北']].forEach(function (t) {
         axis.appendChild(A.svg('line', {
           x1: f2(x(t[0])), y1: SBOT, x2: f2(x(t[0])), y2: SBOT + 4,
-          stroke: '#2e2e3a', 'stroke-width': 1
+          class: 'g-axis', 'stroke-width': 1
         }));
         axis.appendChild(A.svg('text', {
           x: f2(x(t[0])), y: SH - 2, 'text-anchor': t[0] === 0 ? 'start' : (t[0] === 360 ? 'end' : 'middle'),
-          fill: '#4a453d', 'font-size': 9, 'font-family': 'ui-monospace,Menlo,monospace'
+          class: 'g-axis-label', 'font-size': 9, 'font-family': 'ui-monospace,Menlo,monospace'
         }, t[1] + ' ' + t[0] + '°'));
       });
 
@@ -417,9 +416,9 @@
       ]),
       strip.node,
       A.h('div', { class: 'legend' }, [
-        A.h('span', null, [A.h('i', { style: 'background:#c98a2f' }), '已采样']),
-        A.h('span', null, [A.h('i', { style: 'background:#131319;border:1px solid #2e2e3a' }), '未采样']),
-        A.h('span', null, [A.h('i', { style: 'background:#ffb340' }), '当前朝向'])
+        A.h('span', null, [A.h('i', { class: 'sw-fill' }), '已采样']),
+        A.h('span', null, [A.h('i', { class: 'sw-empty' }), '未采样']),
+        A.h('span', null, [A.h('i', { class: 'sw-hot' }), '当前朝向'])
       ])
     ]);
 
@@ -599,6 +598,7 @@
         label: '仰角（度）',
         value: typeof profile[idx] === 'number' ? profile[idx] : null,
         min: -89, max: 89, step: 0.1,
+        signed: true,        // 站在高处俯视时仰角是负的
         allowClear: typeof profile[idx] === 'number',
         placeholder: '例如 3.5'
       }).then(function (v) {

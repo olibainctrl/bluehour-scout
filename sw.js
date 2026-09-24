@@ -21,7 +21,7 @@
  */
 'use strict';
 
-var VERSION = 'v12';
+var VERSION = 'v13';
 var CACHE = 'bluehour-' + VERSION;
 var NET_TIMEOUT = 2000;   // 网络多久没响应就先用缓存顶上
 
@@ -42,6 +42,7 @@ var ASSETS = [
   './js/data/settings.js',
   './js/data/calibration.js',
   './js/data/weather.js',
+  './js/ui/theme.js',
   './js/ui/app.js',
   './js/ui/compass.js',
   './js/ui/viewfinder.js',
@@ -61,6 +62,8 @@ var ASSETS = [
   './js/test/timeline.test.js',
   './js/test/cloud.test.js',
   './js/test/edge.test.js',
+  './js/test/theme.test.js',
+  './js/test/ui.test.js',
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png'

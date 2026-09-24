@@ -1,39 +1,79 @@
 /* 蓝调勘景仪 Blue Hour Scout — css/app.css
  *
- * 深色主题。这个工具是在黄昏和夜里、站在机器旁边用的，所以：
+ * 两套主题，手动切换（顶栏右上角的日/夜按钮，或项目设置里）。
+ *
+ * 夜间（默认）—— 黄昏和夜里站在机器旁边用：
  *  - 背景接近纯黑，没有大面积亮色块
  *  - 文字用低亮度暖白，强调色用琥珀，不用蓝或纯白，避免破坏暗适应
- *  - 关键数字做到足够大，一米开外扫一眼能读
- *  - 手机竖屏优先，主要操作放在下半屏，单手够得到
+ *
+ * 日间 —— 白天在大太阳底下勘景用：
+ *  - 暖白底、近黑字，强反光下也读得清
+ *  - 强调色换成深琥珀，浅底上仍过 WCAG AA
+ *
+ * 所有颜色都是下面的变量，组件里一个写死的色值都不留——
+ * 否则切主题时总会漏掉几块。两套变量的对比度有测试守着（js/test/theme.test.js）。
+ *
+ * 选择器写成 `:root, [data-theme="dark"]` 而不是 `:root[data-theme=...]`，
+ * 是为了让测试能在任意元素上挂 data-theme 读到对应的变量值。
  */
 
-:root{
+/* ============================================================ 夜间（默认） */
+:root, [data-theme="dark"]{
+  color-scheme:dark;
+
   --bg:#07070a;
   --bg-raise:#0f0f14;
   --bg-row:#121218;
   --bg-sunk:#050507;
+  --bg-focus:#08080c;
 
-  /* 对比度（相对 --bg #07070a）：
-   *   --ink       13.9:1
-   *   --ink-dim    6.5:1
-   *   --ink-faint  4.8:1  —— 原来是 #6b6459，只有 3.44:1，低于 WCAG AA 的 4.5:1，
-   *                          而且用在 12px 上，黄昏户外根本看不清。
-   * 背景仍然接近纯黑、不加亮块，暗适应不受影响。 */
+  /* 相对 --bg 的对比度：ink 14.8 / ink-dim 6.5 / ink-faint 5.3。
+   * ink-faint 最早是 #6b6459（3.44:1），太暗；后来提到 #837b6d，
+   * 但在琥珀底（--amber-wash）上只有 4.37，这次再提一点。 */
   --ink:#e6dccb;
   --ink-dim:#9a9184;
-  --ink-faint:#837b6d;
+  --ink-faint:#8a8275;
+  --ink-ghost:#5a554c;       /* 只用于占位提示和刻意压暗的非关键信息 */
 
   --amber:#ffb340;
   --amber-dim:#c98a2f;
   --amber-deep:#3a2f18;
   --amber-wash:#1a1408;
+  --amber-edge:#4d3d1d;
+  --amber-press:#241b0c;
 
-  --ok:#7fb069;
-  --warn:#d8a13a;
-  --bad:#e0533d;
+  --ok:#7fb069;   --ok-bg:#14200f;   --ok-edge:#2a3d20;
+  --warn:#d8a13a; --warn-bg:#1e1708; --warn-edge:#38290f;
+  --bad:#e0533d;  --bad-bg:#1a0f0e;  --bad-edge:#3d1c18;  --bad-ink:#e8b4a9;
 
   --line:#22222b;
   --line-soft:#191920;
+  --line-strong:#2e2e3a;
+
+  --overlay:rgba(0,0,0,.66);
+  --shadow:rgba(0,0,0,.6);
+  --toast-bg:#1c1c24;
+  --toast-ink:#e6dccb;
+
+  --th-bg:#101016;
+  --row-line:#15151b;
+  --row-blue:#0d1017;
+  --row-rs:#241b0c;
+  --row-now:#2a2110;
+  --calib-on-bg:#101a0d;
+
+  /* 罗盘玫瑰与剖面展开图 */
+  --g-empty:#131319;
+  --g-empty-edge:#1f1f28;
+  --g-fill:#c98a2f;
+  --g-hot:#ffb340;
+  --g-ring:#2a2a35;
+  --g-label:#8a8275;
+  --g-grid:#1c1c24;
+  --g-axis:#2e2e3a;
+  --g-axis-label:#6b6459;
+  --g-gap:#0b0b10;
+  --g-aim:#7fb069;
 
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue","PingFang SC",sans-serif;
@@ -42,6 +82,63 @@
   --tap:44px;               /* 最小点击目标 */
   --safe-b:env(safe-area-inset-bottom);
   --safe-t:env(safe-area-inset-top);
+}
+
+/* ============================================================ 日间 */
+[data-theme="light"]{
+  color-scheme:light;
+
+  --bg:#f4f1ec;
+  --bg-raise:#ffffff;
+  --bg-row:#ece7df;
+  --bg-sunk:#faf8f5;
+  --bg-focus:#ffffff;
+
+  --ink:#1a1612;
+  --ink-dim:#4a433a;
+  --ink-faint:#6b6358;
+  --ink-ghost:#9a9286;
+
+  --amber:#9a5300;           /* 浅底上的琥珀必须压深，#ffb340 在白底上只有 1.8:1 */
+  --amber-dim:#b8741a;
+  --amber-deep:#e3cda8;
+  --amber-wash:#fbf1e2;
+  --amber-edge:#dcb47c;
+  --amber-press:#f5e1c2;
+
+  --ok:#2b6e2f;   --ok-bg:#e8f3e6;   --ok-edge:#b5d4ae;
+  --warn:#7d5200; --warn-bg:#fbf0dc; --warn-edge:#e6c78f;
+  --bad:#b3261e;  --bad-bg:#fbe9e7;  --bad-edge:#efb8b1;  --bad-ink:#8c1d16;
+
+  --line:#ddd6cb;
+  --line-soft:#e9e3d9;
+  --line-strong:#c9c0b2;
+
+  --overlay:rgba(30,24,16,.36);
+  --shadow:rgba(60,45,25,.18);
+  --toast-bg:#2a241c;
+  --toast-ink:#f4f1ec;
+
+  --th-bg:#efe9e0;
+  --row-line:#ece6dc;
+  --row-blue:#e8edf6;
+  --row-rs:#fbe8cc;
+  --row-now:#ffe2b3;
+  --calib-on-bg:#eef6ec;
+
+  --g-empty:#ece6dc;
+  --g-empty-edge:#d9d1c4;
+  --g-fill:#c07a1c;
+  --g-hot:#8f4d00;
+  --g-ring:#d9d1c4;
+  --g-label:#6b6358;
+  --g-grid:#e6dfd4;
+  --g-axis:#c9c0b2;
+  --g-axis-label:#7a7266;
+  --g-gap:#f4f1ec;
+  --g-aim:#2b6e2f;
+
+  --statusbar:#1a1612;       /* iOS 状态栏那一条，见 .topbar 的说明 */
 }
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -75,10 +172,35 @@ input,textarea,select,button{font-family:inherit;font-size:16px;color:inherit}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;
 }
 .topbar .sub{font-size:11px;color:var(--ink-faint);font-weight:400;margin-left:8px}
+/* 返回键的可点区域是 44×44（原来只有 32×32，低于触控下限），
+ * 用负外边距把视觉位置拉回左边缘 */
 .topbar .back{
-  flex:none;width:32px;height:32px;margin-left:-8px;
+  flex:none;width:44px;height:44px;margin:-6px 0 -6px -14px;
   display:flex;align-items:center;justify-content:center;
-  color:var(--amber);font-size:22px;line-height:1;background:none;border:none;padding:0;
+  color:var(--amber);background:none;border:none;padding:0;cursor:pointer;
+}
+.topbar .back:active{opacity:.6}
+
+/* 右上角的日/夜切换 */
+.theme-btn{
+  flex:none;width:38px;height:38px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--line);border-radius:10px;
+  color:var(--ink-dim);cursor:pointer;padding:0;
+}
+.theme-btn:active{background:var(--bg-row)}
+
+/* 单色图标 */
+.ico{display:inline-flex;align-items:center;justify-content:center;flex:none;line-height:0}
+.btn .ico{margin-right:1px}
+
+/* 日间主题下 iOS 状态栏：
+ * 状态栏样式是 black-translucent（夜间的最佳选择，而且这个 meta 只在
+ * 启动时读、改了要重开才生效），字永远是白的。日间主题的浅色顶栏
+ * 会让时间和电量直接看不见，所以把安全区那一条单独涂深。
+ * 没有刘海的设备上 safe-area-inset-top 为 0，这条自动消失。 */
+[data-theme="light"] .topbar{
+  background:linear-gradient(to bottom,
+    var(--statusbar) 0, var(--statusbar) var(--safe-t), var(--bg) var(--safe-t));
 }
 .topbar .actions{flex:none;display:flex;gap:8px;align-items:center}
 
@@ -135,8 +257,8 @@ input[type=text],input[type=number],input[type=date],input[type=search],textarea
   padding:11px 12px;min-height:var(--tap);
   color:var(--ink);outline:none;appearance:none;
 }
-input:focus,textarea:focus,select:focus{border-color:var(--amber-deep);background:#08080c}
-input::placeholder,textarea::placeholder{color:#4a453d}
+input:focus,textarea:focus,select:focus{border-color:var(--amber-edge);background:var(--bg-focus)}
+input::placeholder,textarea::placeholder{color:var(--ink-ghost)}
 textarea{min-height:88px;resize:vertical;line-height:1.55}
 select{
   background-image:linear-gradient(45deg,transparent 50%,var(--ink-faint) 50%),
@@ -163,12 +285,12 @@ input:disabled,textarea:disabled{opacity:.45}
 }
 .btn:active{background:var(--amber-wash)}
 .btn[disabled]{opacity:.35;pointer-events:none}
-.btn.primary{background:var(--amber-wash);border-color:#4d3d1d;color:var(--amber)}
-.btn.primary:active{background:#241b0c}
+.btn.primary{background:var(--amber-wash);border-color:var(--amber-edge);color:var(--amber)}
+.btn.primary:active{background:var(--amber-press)}
 .btn.ghost{color:var(--ink-dim);border-color:var(--line)}
 .btn.ghost:active{background:var(--bg-row)}
-.btn.danger{color:var(--bad);border-color:#3d1c18}
-.btn.danger:active{background:#1a0f0e}
+.btn.danger{color:var(--bad);border-color:var(--bad-edge)}
+.btn.danger:active{background:var(--bad-bg)}
 .btn.sm{min-height:34px;padding:0 11px;font-size:13px;border-radius:9px}
 .btn.block{display:flex;width:100%}
 .btn .ico{font-size:15px;line-height:1}
@@ -207,15 +329,17 @@ input:disabled,textarea:disabled{opacity:.45}
 .list button.item:active{background:var(--bg-row)}
 .item .t{font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px}
 .item .t .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.item .d{font:12px/1.6 var(--mono);color:var(--ink-faint);margin-top:3px}
+.item .w{font:600 14px/1.5 var(--mono);color:var(--amber);margin-top:4px}
+.item .w.mute{color:var(--ink-faint);font-weight:400}
+.item .d{font-size:12px;line-height:1.6;color:var(--ink-faint);margin-top:1px}
 
 .badge{
   flex:none;font:600 10px/1 var(--mono);padding:4px 7px;border-radius:5px;
   letter-spacing:.05em;border:1px solid;
 }
-.badge.ok{color:var(--ok);background:#14200f;border-color:#23341a}
-.badge.warn{color:var(--warn);background:#1e1708;border-color:#38290f}
-.badge.bad{color:var(--bad);background:#241110;border-color:#3d1c18}
+.badge.ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-edge)}
+.badge.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-edge)}
+.badge.bad{color:var(--bad);background:var(--bad-bg);border-color:var(--bad-edge)}
 .badge.mute{color:var(--ink-faint);background:var(--bg-row);border-color:var(--line)}
 
 .empty{
@@ -276,15 +400,15 @@ input:disabled,textarea:disabled{opacity:.45}
   background:var(--bg-raise);border-radius:0 10px 10px 0;
   padding:12px 14px;font-size:13px;line-height:1.75;color:var(--ink-dim);margin-bottom:12px;
 }
-.note.bad{border-left-color:var(--bad);color:#e8b4a9}
+.note.bad{border-left-color:var(--bad);color:var(--bad-ink)}
 .note.ok{border-left-color:var(--ok)}
 .note b{color:var(--ink);font-weight:600}
 
 .toast{
   position:fixed;left:50%;bottom:calc(var(--safe-b) + 78px);transform:translateX(-50%);
-  background:#1c1c24;border:1px solid var(--line);border-radius:10px;
-  padding:10px 16px;font-size:13px;color:var(--ink);
-  box-shadow:0 8px 28px rgba(0,0,0,.6);z-index:60;
+  background:var(--toast-bg);border:1px solid var(--line);border-radius:10px;
+  padding:10px 16px;font-size:13px;color:var(--toast-ink);
+  box-shadow:0 8px 28px var(--shadow);z-index:60;
   opacity:0;pointer-events:none;transition:opacity .18s ease;max-width:86vw;text-align:center;
 }
 .toast.show{opacity:1}
@@ -292,14 +416,16 @@ input:disabled,textarea:disabled{opacity:.45}
 /* ---------------------------------------------------------------- 底部抽屉 */
 
 .sheet-back{
-  position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:70;
+  position:fixed;inset:0;background:var(--overlay);z-index:70;
   display:flex;align-items:flex-end;opacity:0;transition:opacity .18s ease;
+  padding-bottom:var(--kb,0px);   /* iOS 键盘高度，见 app.js */
 }
 .sheet-back.show{opacity:1}
 .sheet{
   width:100%;background:var(--bg-raise);border-top:1px solid var(--line);
   border-radius:16px 16px 0 0;padding:18px var(--pad) calc(var(--safe-b) + 18px);
-  transform:translateY(12px);transition:transform .18s ease;max-height:86vh;overflow-y:auto;
+  transform:translateY(12px);transition:transform .18s ease;
+  max-height:calc(86vh - var(--kb,0px));overflow-y:auto;
 }
 .sheet-back.show .sheet{transform:none}
 .sheet h3{margin:0 0 4px;font-size:15px;font-weight:600}
@@ -379,7 +505,8 @@ table.data tr:last-child td{border-bottom:none}
   display:flex;align-items:center;justify-content:center;
   font:600 12px/1 var(--mono);color:var(--ink-faint);
 }
-.nav-row.done .num{border-color:#2a3d20;background:#14200f;color:var(--ok)}
+.nav-row.done .num{border-color:var(--ok-edge);background:var(--ok-bg);color:var(--ok)}
+.nav-row .num.tool{color:var(--amber);border-color:var(--amber-edge);background:var(--amber-wash)}
 .nav-row .body{flex:1;min-width:0}
 .nav-row .t{font-size:16px;font-weight:500;display:block}
 .nav-row .s{
@@ -487,23 +614,9 @@ details.fold > .fold-body{padding:0 14px 14px;border-top:1px solid var(--line-so
 }
 .datebar .step:active{background:var(--bg-row)}
 
-/* 顶部大字：窗口时长 */
-.window-big{
-  border:1px solid var(--line);border-radius:14px;background:var(--bg-raise);
-  padding:18px 16px;margin-bottom:12px;
-}
-.window-big .n{
-  font:600 clamp(46px,16vw,68px)/1 var(--mono);color:var(--amber);
-  letter-spacing:-.04em;font-variant-numeric:tabular-nums;
-}
-.window-big .u{font-size:16px;color:var(--ink-dim);margin-left:8px}
-.window-big .sub{font-size:14px;color:var(--ink-dim);margin-top:8px;line-height:1.6}
-.window-big .sub b{color:var(--ink);font-weight:600;font-family:var(--mono)}
-.window-big.bad .n{color:var(--bad)}
-
 /* 「现在」面板：站在机器旁边扫一眼要读的就是这个 */
 .now-panel{
-  border:1px solid #4d3d1d;border-radius:14px;background:var(--amber-wash);
+  border:1px solid var(--amber-edge);border-radius:14px;background:var(--amber-wash);
   padding:16px;margin-bottom:12px;
 }
 .now-panel .lab{
@@ -544,31 +657,31 @@ details.fold > .fold-body{padding:0 14px 14px;border-top:1px solid var(--line-so
 }
 table.tl{width:100%;border-collapse:separate;border-spacing:0;font:12px/1.4 var(--mono)}
 table.tl th{
-  position:sticky;top:0;z-index:2;background:#101016;color:var(--ink-faint);
+  position:sticky;top:0;z-index:2;background:var(--th-bg);color:var(--ink-faint);
   font-weight:600;text-align:right;padding:8px 7px;white-space:nowrap;
   font-size:10px;letter-spacing:.05em;border-bottom:1px solid var(--line);
 }
 table.tl td{
   padding:7px;text-align:right;white-space:nowrap;color:var(--ink-dim);
-  font-variant-numeric:tabular-nums;border-bottom:1px solid #15151b;
+  font-variant-numeric:tabular-nums;border-bottom:1px solid var(--row-line);
 }
 table.tl th.t,table.tl td.t{
   position:sticky;left:0;z-index:1;text-align:left;
   background:var(--bg-sunk);border-right:1px solid var(--line);
 }
-table.tl th.t{z-index:3;background:#101016}
+table.tl th.t{z-index:3;background:var(--th-bg)}
 table.tl tr:last-child td{border-bottom:none}
 
-table.tl tr.blue td{background:#0d1017}
-table.tl tr.blue td.t{background:#0d1017}
+table.tl tr.blue td{background:var(--row-blue)}
+table.tl tr.blue td.t{background:var(--row-blue)}
 table.tl tr.occ td.alt{color:var(--ink-faint)}
-table.tl tr.rs td{background:#241b0c;color:var(--amber)}
-table.tl tr.rs td.t{background:#241b0c;color:var(--amber);font-weight:600}
-table.tl tr.now td{background:#2a2110;color:var(--ink);box-shadow:inset 0 0 0 1px #4d3d1d}
-table.tl tr.now td.t{background:#2a2110;color:var(--amber);font-weight:600}
+table.tl tr.rs td{background:var(--row-rs);color:var(--amber)}
+table.tl tr.rs td.t{background:var(--row-rs);color:var(--amber);font-weight:600}
+table.tl tr.now td{background:var(--row-now);color:var(--ink);box-shadow:inset 0 0 0 1px var(--amber-edge)}
+table.tl tr.now td.t{background:var(--row-now);color:var(--amber);font-weight:600}
 table.tl tr.lit td.t{color:var(--ok)}
 table.tl td.over{color:var(--bad)}
-table.tl td.dim{color:#5a554c}
+table.tl td.dim{color:var(--ink-ghost)}
 table.tl tr:active td{background:var(--bg-row)}
 
 .tl-legend{
@@ -583,7 +696,7 @@ table.tl tr:active td{background:var(--bg-row)}
   padding:12px 13px;margin-bottom:12px;font-size:13px;color:var(--ink-dim);line-height:1.55;
 }
 .calib b{color:var(--ink);font-weight:600}
-.calib.on{border-color:#2a3d20;background:#101a0d}
+.calib.on{border-color:var(--ok-edge);background:var(--calib-on-bg)}
 .calib.on b{color:var(--ok)}
 
 /* ------------------------------------------------------------ 七天云量 */
@@ -592,7 +705,7 @@ table.tl tr:active td{background:var(--bg-row)}
   border:1px solid var(--line);border-radius:14px;background:var(--bg-raise);
   padding:14px;margin-bottom:10px;
 }
-.day-card.today{border-color:#4d3d1d}
+.day-card.today{border-color:var(--amber-edge)}
 .day-card .head{display:flex;align-items:baseline;gap:10px;margin-bottom:3px}
 .day-card .d{font-size:17px;font-weight:600;color:var(--ink)}
 .day-card .w{font:12px/1 var(--mono);color:var(--ink-faint);flex:1}
@@ -607,7 +720,7 @@ table.tl tr:active td{background:var(--bg-row)}
 .cloud-cols .k{font-size:11px;color:var(--ink-faint);margin-bottom:4px}
 .cloud-cols .v{font:600 19px/1 var(--mono);color:var(--ink-dim);font-variant-numeric:tabular-nums}
 .cloud-cols .low .v{font-size:23px;color:var(--ink)}
-.cloud-cols .low{border-color:#2e2e3a}
+.cloud-cols .low{border-color:var(--line-strong)}
 .day-card.good .cloud-cols .low .v{color:var(--ok)}
 .day-card.maybe .cloud-cols .low .v{color:var(--warn)}
 .day-card.bad .cloud-cols .low .v{color:var(--bad)}
@@ -631,6 +744,164 @@ table.tl tr:active td{background:var(--bg-row)}
   padding:11px 13px;margin-bottom:14px;font-size:13px;color:var(--ink-dim);line-height:1.55;
 }
 .src.stale{border-left:2px solid var(--warn);border-radius:0 11px 11px 0}
-.src.err{border-left:2px solid var(--bad);border-radius:0 11px 11px 0;color:#e8b4a9}
+.src.err{border-left:2px solid var(--bad);border-radius:0 11px 11px 0;color:var(--bad-ink)}
 .src .txt{flex:1;min-width:0}
 .src b{color:var(--ink);font-weight:600}
+
+
+/* ------------------------------------------------------------ 图形配色 */
+/* 罗盘玫瑰与剖面展开图的颜色全部走变量，切主题时 SVG 跟着变。
+ * CSS 规则的优先级高于 SVG 的呈现属性，所以这里说了算。 */
+.g-empty{fill:var(--g-empty);stroke:var(--g-empty-edge)}
+.g-empty.dwell{stroke:var(--amber-edge)}
+.g-fill{fill:var(--g-fill)}
+.g-fill.dwell{fill:var(--g-hot)}
+.g-ring{fill:none;stroke:var(--g-ring)}
+.g-arc{fill:none;stroke:var(--g-hot)}
+.g-needle{fill:var(--g-hot)}
+.g-aim{fill:var(--g-aim)}
+.g-label{fill:var(--g-label)}
+.g-grid{stroke:var(--g-grid)}
+.g-axis{stroke:var(--g-axis)}
+.g-axis-label{fill:var(--g-axis-label)}
+.g-gap{fill:var(--g-gap)}
+.g-area{fill:var(--g-fill)}
+.g-line{fill:none;stroke:var(--g-fill)}
+.g-dot{fill:var(--g-hot)}
+.g-cursor{stroke:var(--g-hot)}
+
+/* 图例色块 */
+.sw-fill{background:var(--g-fill)}
+.sw-empty{background:var(--g-empty);border:1px solid var(--g-axis)}
+.sw-hot{background:var(--g-hot)}
+.sw-now{background:var(--row-now);border:1px solid var(--amber-edge)}
+.sw-rs{background:var(--row-rs)}
+.sw-blue{background:var(--row-blue);border:1px solid var(--line)}
+
+
+/* 新版本提示条 */
+.update-bar{
+  position:fixed;left:12px;right:12px;bottom:calc(var(--safe-b) + 78px);z-index:80;
+  display:flex;gap:10px;align-items:center;
+  background:var(--bg-raise);border:1px solid var(--amber-edge);border-radius:11px;
+  padding:11px 13px;box-shadow:0 8px 28px var(--shadow);
+}
+.update-bar .txt{flex:1;font-size:13px;color:var(--ink-dim)}
+
+
+/* ------------------------------------------------------------ 数字输入 */
+.num-wrap{display:flex;gap:6px;align-items:stretch}
+.num-wrap input{flex:1;min-width:0;font-family:var(--mono)}
+/* ± 键：iOS 的 decimal 小键盘上没有负号，全靠它 */
+.num-wrap .pm{
+  flex:none;width:44px;min-height:var(--tap);
+  background:var(--bg-sunk);border:1px solid var(--line);border-radius:10px;
+  color:var(--amber);font:600 18px/1 var(--mono);cursor:pointer;padding:0;
+}
+.num-wrap .pm:active{background:var(--bg-row)}
+
+/* 步进器 − n + */
+.stepper{
+  display:inline-flex;align-items:center;
+  border:1px solid var(--line);border-radius:11px;background:var(--bg-sunk);overflow:hidden;
+}
+.stepper .sb{
+  width:44px;height:42px;display:flex;align-items:center;justify-content:center;
+  background:none;border:none;color:var(--amber);cursor:pointer;padding:0;
+}
+.stepper .sb:active{background:var(--bg-row)}
+.stepper .sb[disabled]{color:var(--ink-ghost);pointer-events:none}
+.stepper .sv{
+  min-width:40px;text-align:center;font:600 17px/1 var(--mono);color:var(--ink);
+  font-variant-numeric:tabular-nums;
+}
+
+
+/* ------------------------------------------------------------ 时间轴头部（压缩后）*/
+/* 窗口大字 + 关键时刻合成一张卡，时刻两列网格 */
+.summary-card{
+  border:1px solid var(--line);border-radius:14px;background:var(--bg-raise);
+  padding:14px 14px 12px;margin-bottom:10px;
+}
+.summary-card .sum-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.summary-card .n{
+  font:600 clamp(40px,13vw,54px)/1 var(--mono);color:var(--amber);
+  letter-spacing:-.04em;font-variant-numeric:tabular-nums;
+}
+.summary-card .n.bad{color:var(--bad)}
+.summary-card .u{font-size:15px;color:var(--ink-dim)}
+.summary-card .range{margin-left:auto;font:12px/1 var(--mono);color:var(--ink-faint)}
+.summary-card .sum-win{
+  font:600 17px/1.3 var(--mono);color:var(--ink);margin-top:6px;font-variant-numeric:tabular-nums;
+}
+.sum-grid{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 12px;
+  margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft);
+}
+.sum-grid .sc{min-width:0}
+.sum-grid .sc .k{font-size:11px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sum-grid .sc .v{font:600 17px/1.25 var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.sum-grid .sc .x{font-size:11px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sum-grid .sc.hi .k,.sum-grid .sc.hi .v,.sum-grid .sc.hi .x{color:var(--amber)}
+
+/* 拍摄参数：两行，镜头下拉 + setup 步进器 */
+.card.shoot{padding:10px 14px 12px}
+.shoot-row{display:flex;align-items:center;gap:10px;padding:5px 0}
+.shoot-row .k{flex:none;width:44px;font-size:13px;color:var(--ink-faint)}
+.shoot-row select{flex:1;min-width:0}
+.shoot-row .budget{flex:1;min-width:0;font-size:13px;color:var(--ink-dim);line-height:1.45}
+.shoot-row .budget b{color:var(--ink);font-family:var(--mono)}
+.shoot-row .budget.bad,.shoot-row .budget.bad b{color:var(--bad)}
+
+/* 校准状态：一整行都能点，点开看实测点 */
+button.calib{width:100%;text-align:left;cursor:pointer;font:inherit}
+button.calib:active{background:var(--bg-row)}
+.calib .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.calib .s{font-size:12px;color:var(--ink-faint);line-height:1.5}
+.calib .chev{flex:none;color:var(--ink-faint);font-size:20px;line-height:1}
+
+
+/* 七天云量：一周总览条 */
+.card.week-card{padding:10px 8px 10px}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.wk{
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:8px 0 7px;background:none;border:1px solid transparent;border-radius:10px;
+  cursor:pointer;color:inherit;min-width:0;
+}
+.wk:active{background:var(--bg-row)}
+.wk.today{border-color:var(--amber-edge);background:var(--amber-wash)}
+.wk .wd{font-size:10px;color:var(--ink-faint);white-space:nowrap}
+.wk .dt{font:600 16px/1 var(--mono);color:var(--ink)}
+.wk .dot,.week-legend .dot{
+  display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--ink-ghost);
+}
+.wk.good .dot,.week-legend .dot.good{background:var(--ok)}
+.wk.maybe .dot,.week-legend .dot.maybe{background:var(--warn)}
+.wk.bad .dot,.week-legend .dot.bad{background:var(--bad)}
+.wk .lc{font:11px/1 var(--mono);color:var(--ink-dim)}
+.week-legend{
+  display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  margin:10px 6px 0;font-size:11px;color:var(--ink-faint);
+}
+.week-legend .dot{width:8px;height:8px;margin-right:4px;vertical-align:0}
+.week-legend .hint-inline{margin-left:auto}
+
+
+/* ------------------------------------------------------------ 设置页 */
+/* 外观：夜间 / 日间 两段式开关 */
+.segs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg{
+  display:flex;flex-direction:column;align-items:flex-start;gap:4px;
+  padding:12px;border:1px solid var(--line);border-radius:12px;
+  background:var(--bg-sunk);color:var(--ink-dim);cursor:pointer;text-align:left;font:inherit;
+}
+.seg .l{font-size:15px;font-weight:600;color:var(--ink)}
+.seg .s{font-size:11px;color:var(--ink-faint);line-height:1.4}
+.seg.on{border-color:var(--amber-edge);background:var(--amber-wash);color:var(--amber)}
+.seg.on .l{color:var(--amber)}
+.seg:active{background:var(--bg-row)}
+
+/* 「加一支」那一行 */
+.nav-row.add .t{color:var(--amber);font-size:15px}
+.nav-row .badge{margin-right:2px}

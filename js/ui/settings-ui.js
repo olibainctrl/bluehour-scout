@@ -1,11 +1,15 @@
 /*!
  * 蓝调勘景仪 Blue Hour Scout — js/ui/settings-ui.js
  *
- * 项目设置：摄影机、镜头、蓝调区间、灯具。
+ * 项目设置：外观、摄影机、镜头、蓝调区间、灯具。
  *
- * 这一页放的是**定义**，不是每次拍摄都要改的东西。
- * 真正常改的两样——当前用哪支镜头、这个机位打算拍几个 setup——
- * 直接做在时间轴页上，不用绕到这里来。
+ * 版面是"摘要行 + 点开编辑"，和记录概览页一个路数。
+ * 早先是一整页展开的表单：六支镜头每支都是一组输入框加一个「删除这支」，
+ * 整页 3.6 屏，而且八个删除按钮**点了直接删、没有确认**，就排在滚动路径上。
+ * 现在每一项点开是一个抽屉，删除收进抽屉里并且要二次确认。
+ *
+ * 当前用哪支镜头、这个机位拍几个 setup 这两样是每次拍摄都会动的，
+ * 直接做在时间轴页上，不用绕到这里。
  */
 (function (root, factory) {
   'use strict';
@@ -15,16 +19,14 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
-  var A = null, St = null, E = null;
+  var A, St, E, Th;
   function deps() {
-    A = A || root.BH.App; St = St || root.BH.Settings; E = E || root.BH.Exposure;
+    A = root.BH.App; St = root.BH.Settings; E = root.BH.Exposure; Th = root.BH.Theme;
   }
-
-  var SAVE_DEBOUNCE = 500;
 
   function render(params, view) {
     deps();
-    var s = null, saveTimer = null, dirty = false, disposed = false;
+    var s = null, disposed = false;
 
     A.setTop({ title: '项目设置', back: true });
     view.appendChild(A.h('div', { class: 'hint', text: '载入中…' }));
@@ -32,69 +34,77 @@
     St.load().then(function (loaded) {
       if (disposed) { return; }
       s = loaded;
-      A.clear(view);
-      build();
+      paint();
     }).catch(function (e) {
       if (disposed) { return; }
       A.clear(view);
       view.appendChild(A.h('div', { class: 'note bad', text: '读取设置失败：' + e.message }));
     });
 
-    function scheduleSave() {
-      dirty = true;
-      if (saveTimer) { clearTimeout(saveTimer); }
-      saveTimer = setTimeout(flushSave, SAVE_DEBOUNCE);
-    }
-    function flushSave() {
-      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-      if (!s || !dirty) { return Promise.resolve(); }
-      dirty = false;
-      return St.save(s).catch(function (e) {
-        dirty = true;
-        A.toast('保存失败：' + e.message, 4000);
-      });
+    function save() {
+      return St.save(s).then(function (saved) {
+        s = saved;
+        if (!disposed) { paint(); }
+      }).catch(function (e) { A.toast('保存失败：' + e.message, 4000); });
     }
 
-    function numField(label, unit, value, onChange, attrs) {
-      var inp = A.h('input', Object.assign({
-        type: 'number', step: 'any', inputmode: 'decimal',
-        value: (value === null || value === undefined) ? '' : value
-      }, attrs || {}));
-      inp.addEventListener('input', function () {
-        onChange(inp.value === '' ? null : parseFloat(inp.value));
-        scheduleSave();
-      });
-      return A.h('div', { class: 'field' }, [
-        A.h('label', null, [label, unit ? A.h('span', { class: 'unit', text: '（' + unit + '）' }) : null]),
-        inp
-      ]);
-    }
-
-    function build() {
-      A.setTop({ title: '项目设置', back: function () { flushSave().then(function () { A.back(); }); } });
+    function paint() {
+      A.clear(view);
+      A.setTop({ title: '项目设置', back: true });
       A.setDock([
         A.h('button', {
-          class: 'btn primary block', type: 'button',
-          on: { click: function () { flushSave().then(function () { A.back(); }); } }
+          class: 'btn primary block', type: 'button', on: { click: function () { A.back(); } }
         }, '完成')
       ]);
 
-      view.appendChild(buildCamera());
-      view.appendChild(buildLenses());
-      view.appendChild(buildBlue());
-      view.appendChild(buildLights());
+      view.appendChild(buildAppearance());
+
+      view.appendChild(A.h('p', { class: 'section-title', text: '摄影机' }));
+      view.appendChild(A.h('div', { class: 'nav-list' }, [cameraRow()]));
+
+      view.appendChild(A.h('p', { class: 'section-title', text: '镜头 · ' + s.lenses.length + ' 支' }));
+      var lensList = A.h('div', { class: 'nav-list' });
+      s.lenses.forEach(function (L, i) { lensList.appendChild(lensRow(L, i)); });
+      lensList.appendChild(addRow('加一支镜头', function () {
+        editLens(null, s.lenses.length);
+      }));
+      view.appendChild(lensList);
+
+      view.appendChild(A.h('p', { class: 'section-title', text: '蓝调区间' }));
+      view.appendChild(A.h('div', { class: 'nav-list' }, [blueRow()]));
+
+      view.appendChild(A.h('p', { class: 'section-title', text: '灯具 · ' + s.lights.length + ' 支' }));
+      var lightList = A.h('div', { class: 'nav-list' });
+      s.lights.forEach(function (L, i) { lightList.appendChild(lightRow(L, i)); });
+      lightList.appendChild(addRow('加一支灯', function () {
+        editLight(null, s.lights.length);
+      }));
+      view.appendChild(lightList);
+
+      view.appendChild(A.h('details', { class: 'fold' }, [
+        A.h('summary', null, '灯具照度怎么填'),
+        A.h('div', { class: 'fold-body' }, [
+          A.h('p', { class: 'hint' },
+            '厂商规格表通常会给"1 米处 XXXX lux"，直接填，距离填 1。' +
+            '手上有测光表的话，把灯摆到实拍距离上测一个更准。'),
+          A.h('p', { class: 'hint' },
+            '换算：EV100 = log2(照度 ÷ 2.5)。距离翻倍照度降到四分之一（平方反比）。'),
+          A.h('p', { class: 'hint' }, '参考：160 lux = EV100 6，640 lux = EV100 8，2560 lux = EV100 10。')
+        ])
+      ]));
+
       view.appendChild(A.h('div', { class: 'danger-zone' }, [
         A.h('button', {
           class: 'btn ghost block', type: 'button',
           on: {
             click: function () {
-              A.confirm('恢复默认设置？', '摄影机、镜头、蓝调区间、灯具全部回到预设值，已填的照度会丢失。',
-                        '恢复默认', 'danger').then(function (ok) {
+              A.confirm('恢复默认设置？',
+                '摄影机、镜头、蓝调区间、灯具全部回到预设值，已填的照度会丢失。外观不受影响。',
+                '恢复默认', 'danger').then(function (ok) {
                 if (!ok) { return; }
                 St.reset().then(function (d) {
                   if (disposed) { return; }
-                  s = d; dirty = false;
-                  A.clear(view); build();
+                  s = d; paint();
                   A.toast('已恢复默认设置');
                 });
               });
@@ -102,242 +112,265 @@
           }
         }, '恢复默认设置')
       ]));
-      view.appendChild(A.h('p', { class: 'hint', text: '改动自动保存。' }));
+    }
+
+    // ---------------------------------------------------------- 外观
+
+    function buildAppearance() {
+      var cur = Th.get();
+      function seg(value, label, iconName, note) {
+        var on = cur === value;
+        return A.h('button', {
+          class: 'seg' + (on ? ' on' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false',
+          on: {
+            click: function () {
+              if (Th.get() === value) { return; }
+              Th.set(value);
+              paint();
+            }
+          }
+        }, [A.icon(iconName, 18), A.h('span', { class: 'l', text: label }),
+            A.h('span', { class: 's', text: note })]);
+      }
+      return A.h('div', { class: 'card' }, [
+        A.h('div', { class: 'card-head' }, [A.h('h2', { text: '外观' })]),
+        A.h('div', { class: 'segs' }, [
+          seg('dark', '夜间', 'moon', '黄昏和夜里，保护暗适应'),
+          seg('light', '日间', 'sun', '白天强光下勘景')
+        ]),
+        A.h('p', { class: 'hint' }, '每一页右上角也有一个日/夜按钮，一下就能切。')
+      ]);
+    }
+
+    // ------------------------------------------------------- 通用行
+
+    function row(title, sub, onClick, badge) {
+      return A.h('button', { class: 'nav-row', type: 'button', on: { click: onClick } }, [
+        A.h('span', { class: 'body' }, [
+          A.h('span', { class: 't', text: title }),
+          sub ? A.h('span', { class: 's', text: sub }) : null
+        ]),
+        badge || null,
+        A.h('span', { class: 'chev', text: '›' })
+      ]);
+    }
+
+    function addRow(label, onClick) {
+      return A.h('button', { class: 'nav-row add', type: 'button', on: { click: onClick } }, [
+        A.h('span', { class: 'num tool' }, A.icon('plus', 16)),
+        A.h('span', { class: 'body' }, [A.h('span', { class: 't', text: label })])
+      ]);
+    }
+
+    function field(label, node, note) {
+      return A.h('div', { class: 'field' }, [
+        A.h('label', null, label), node,
+        note ? A.h('div', { class: 'hint' }, note) : null
+      ]);
     }
 
     // -------------------------------------------------------- 摄影机
 
-    function buildCamera() {
+    function cameraRow() {
       var c = s.camera;
-      var shutterOut = A.h('div', { class: 'hint' });
-      function syncShutter() {
-        var t = E.shutterSeconds(c.shutterAngle, c.fps);
-        shutterOut.textContent = t
-          ? '快门速度 1/' + Math.round(1 / t) + ' 秒（曝光换算用的就是这个值）'
-          : '帧率或快门角度无效';
-      }
-      syncShutter();
+      var t = E.shutterSeconds(c.shutterAngle, c.fps);
+      return row(c.name,
+        'ISO ' + c.isoLow + ' / ' + c.isoHigh + ' · ' + c.fps + 'fps · ' + c.shutterAngle + '°' +
+        (t ? ' · 1/' + Math.round(1 / t) + 's' : ''),
+        editCamera);
+    }
 
+    function editCamera() {
+      var c = s.camera;
       var nameIn = A.h('input', { type: 'text', value: c.name, maxlength: 80 });
-      nameIn.addEventListener('input', function () { c.name = nameIn.value; scheduleSave(); });
+      var isoLo = A.numInput({ value: c.isoLow, integer: true, onInput: preview });
+      var isoHi = A.numInput({ value: c.isoHigh, integer: true, onInput: preview });
+      var fps = A.numInput({ value: c.fps, onInput: preview });
+      var ang = A.numInput({ value: c.shutterAngle, onInput: preview });
+      var out = A.h('div', { class: 'hint' });
+      function preview() {
+        if (!fps || !ang) { return; }
+        var t = E.shutterSeconds(ang.value(), fps.value());
+        out.textContent = t ? '快门速度 1/' + Math.round(1 / t) + ' 秒，曝光换算用的就是这个。'
+                            : '帧率或快门角度无效。';
+      }
+      preview();
 
-      return A.h('div', { class: 'card' }, [
-        A.h('div', { class: 'card-head' }, [A.h('h2', { text: '摄影机' })]),
-        A.h('div', { class: 'field' }, [A.h('label', { text: '机型' }), nameIn]),
-        A.h('div', { class: 'row' }, [
-          numField('原生 ISO 低档', null, c.isoLow, function (v) { c.isoLow = v; }, { min: 1 }),
-          numField('原生 ISO 高档', null, c.isoHigh, function (v) { c.isoHigh = v; }, { min: 1 })
+      A.sheet({
+        title: '摄影机',
+        dismissValue: null,
+        body: A.h('div', null, [
+          field('机型', nameIn),
+          A.h('div', { class: 'row' }, [
+            field('原生 ISO 低档', isoLo.node), field('原生 ISO 高档', isoHi.node)
+          ]),
+          A.h('div', { class: 'row' }, [
+            field('帧率（fps）', fps.node), field('快门角度（度）', ang.node)
+          ]),
+          out
         ]),
-        A.h('div', { class: 'row' }, [
-          numField('帧率', 'fps', c.fps, function (v) { c.fps = v; syncShutter(); }, { min: 1 }),
-          numField('快门角度', '度', c.shutterAngle, function (v) { c.shutterAngle = v; syncShutter(); },
-                   { min: 1, max: 360 })
-        ]),
-        shutterOut
-      ]);
+        actions: [
+          { label: '取消', value: null, kind: 'ghost' },
+          { label: '保存', value: 'save', kind: 'primary' }
+        ]
+      }).then(function (v) {
+        if (v !== 'save') { return; }
+        c.name = nameIn.value.trim() || c.name;
+        if (isoLo.value() > 0) { c.isoLow = isoLo.value(); }
+        if (isoHi.value() > 0) { c.isoHigh = isoHi.value(); }
+        if (fps.value() > 0) { c.fps = fps.value(); }
+        if (ang.value() > 0 && ang.value() <= 360) { c.shutterAngle = ang.value(); }
+        save();
+      });
     }
 
     // ---------------------------------------------------------- 镜头
 
-    function buildLenses() {
-      var listBox = A.h('div');
+    function lensRow(L, i) {
+      var cur = s.selectedLens === i;
+      return row(L.name,
+        (L.maxAperture ? '最大光圈 T' + L.maxAperture : '没填最大光圈') + (cur ? ' · 当前在用' : ''),
+        function () { editLens(L, i); },
+        cur ? A.h('span', { class: 'badge ok', text: '在用' }) : null);
+    }
 
-      function paint() {
-        A.clear(listBox);
-        s.lenses.forEach(function (L, i) {
-          var nameIn = A.h('input', { type: 'text', value: L.name, maxlength: 80 });
-          nameIn.addEventListener('input', function () { L.name = nameIn.value; scheduleSave(); });
-          var apIn = A.h('input', {
-            type: 'number', step: 'any', inputmode: 'decimal',
-            value: L.maxAperture === null ? '' : L.maxAperture, min: 0.5, max: 64
-          });
-          apIn.addEventListener('input', function () {
-            var v = parseFloat(apIn.value);
-            L.maxAperture = isFinite(v) ? v : null;
-            scheduleSave();
-          });
-          listBox.appendChild(A.h('div', {
-            style: 'padding:12px 0;border-bottom:1px solid var(--line-soft)'
-          }, [
-            A.h('div', { class: 'row tight', style: 'align-items:flex-end' }, [
-              A.h('div', { class: 'field', style: 'flex:2;margin:0' }, [
-                A.h('label', { text: '第 ' + (i + 1) + ' 支' }), nameIn
-              ]),
-              A.h('div', { class: 'field', style: 'flex:1;margin:0' }, [
-                A.h('label', { text: '最大光圈' }), apIn
-              ])
-            ]),
-            A.h('button', {
-              class: 'btn sm ghost', type: 'button', style: 'margin-top:9px',
-              on: {
-                click: function () {
-                  s.lenses.splice(i, 1);
-                  if (s.selectedLens >= s.lenses.length) { s.selectedLens = s.lenses.length - 1; }
-                  scheduleSave(); paint();
-                }
-              }
-            }, '删除这支')
-          ]));
-        });
-        if (!s.lenses.length) {
-          listBox.appendChild(A.h('p', { class: 'hint', text: '还没有镜头。' }));
-        }
-      }
-      paint();
+    function editLens(L, i) {
+      var isNew = !L;
+      var nameIn = A.h('input', { type: 'text', value: L ? L.name : '', maxlength: 80,
+                                  placeholder: '例如 Canon nFD 85mm F1.8' });
+      var ap = A.numInput({ value: L ? L.maxAperture : null, placeholder: '例如 1.8' });
+      var actions = [{ label: '取消', value: null, kind: 'ghost' }];
+      if (!isNew) { actions.unshift({ label: '删除', value: 'del', kind: 'danger' }); }
+      actions.push({ label: isNew ? '添加' : '保存', value: 'save', kind: 'primary' });
 
-      return A.h('div', { class: 'card' }, [
-        A.h('div', { class: 'card-head' }, [
-          A.h('h2', { text: '镜头' }),
-          A.h('span', { class: 'meta', text: s.lenses.length + ' 支' })
+      A.sheet({
+        title: isNew ? '加一支镜头' : '镜头',
+        sub: '光圈按厂标填就行。时间轴会用当前在用镜头的最大光圈判断什么时候必须切到高原生 ISO。',
+        dismissValue: null,
+        body: A.h('div', null, [
+          field('名称', nameIn),
+          field('最大光圈', ap.node),
+          (!isNew && s.selectedLens !== i) ? A.h('button', {
+            class: 'btn sm', type: 'button',
+            on: { click: function () { s.selectedLens = i; save(); A.toast('已设为当前镜头'); } }
+          }, '设为当前在用') : null
         ]),
-        A.h('p', { class: 'hint', style: 'margin-top:0' },
-          '光圈值按厂标预填，和实际 T 档可能有出入，随时可改。' +
-          '时间轴会用当前选中镜头的最大光圈判断什么时候必须切到高原生 ISO。'),
-        listBox,
-        A.h('button', {
-          class: 'btn sm', type: 'button', style: 'margin-top:12px',
-          on: {
-            click: function () {
-              s.lenses.push({ name: '新镜头', maxAperture: 2.8 });
-              scheduleSave(); paint();
-            }
-          }
-        }, '＋ 加一支镜头')
-      ]);
+        actions: actions
+      }).then(function (v) {
+        if (v === 'del') {
+          return A.confirm('删除「' + L.name + '」？', '这支镜头会从列表里去掉。', '删除', 'danger')
+            .then(function (ok) {
+              if (!ok) { return; }
+              s.lenses.splice(i, 1);
+              if (s.selectedLens === i) { s.selectedLens = s.lenses.length ? 0 : null; }
+              else if (s.selectedLens > i) { s.selectedLens--; }
+              save();
+            });
+        }
+        if (v !== 'save') { return; }
+        var name = nameIn.value.trim();
+        if (!name) { A.toast('没填名称'); return; }
+        var a = ap.value();
+        var entry = { name: name, maxAperture: (a > 0 && a < 64) ? a : null };
+        if (isNew) { s.lenses.push(entry); } else { s.lenses[i] = entry; }
+        save();
+      });
     }
 
     // ------------------------------------------------------ 蓝调区间
 
-    function buildBlue() {
-      var out = A.h('div', { class: 'hint' });
-      function sync() {
-        out.textContent = '窗口 = 太阳视高度角从 ' + A.deg(s.blueRange.upper) +
-                          ' 降到 ' + A.deg(s.blueRange.lower) + ' 的那段时间。';
-      }
-      sync();
-      return A.h('div', { class: 'card' }, [
-        A.h('div', { class: 'card-head' }, [A.h('h2', { text: '蓝调区间' })]),
-        A.h('div', { class: 'row' }, [
-          numField('上界', '度', s.blueRange.upper, function (v) {
-            s.blueRange.upper = v; sync();
-          }, { min: -90, max: 90 }),
-          numField('下界', '度', s.blueRange.lower, function (v) {
-            s.blueRange.lower = v; sync();
-          }, { min: -90, max: 90 })
-        ]),
-        out,
-        A.h('p', { class: 'hint' },
-          '默认 0° 到 −9°。0° 是太阳视位置擦过地平线的那一刻，' +
-          '−6° 是民用暮光结束，−12° 是航海暮光结束。')
-      ]);
+    function blueRow() {
+      var b = s.blueRange;
+      return row(A.deg(b.upper, 0) + ' → ' + A.deg(b.lower, 0),
+        '太阳视高度角从上界降到下界的这段时间', editBlue);
+    }
+
+    function editBlue() {
+      var b = s.blueRange;
+      // 下界默认 −9°：必须能输负号
+      var up = A.numInput({ value: b.upper, signed: true });
+      var lo = A.numInput({ value: b.lower, signed: true });
+      A.sheet({
+        title: '蓝调区间',
+        sub: '0° 是太阳视位置擦过地平线的那一刻，−6° 是民用暮光结束，−12° 是航海暮光结束。',
+        dismissValue: null,
+        body: A.h('div', { class: 'row' }, [field('上界（度）', up.node), field('下界（度）', lo.node)]),
+        actions: [
+          { label: '恢复 0° / −9°', value: 'reset', kind: 'ghost' },
+          { label: '取消', value: null, kind: 'ghost' },
+          { label: '保存', value: 'save', kind: 'primary' }
+        ]
+      }).then(function (v) {
+        if (v === 'reset') { s.blueRange = { upper: 0, lower: -9 }; save(); return; }
+        if (v !== 'save') { return; }
+        var u = up.value(), l = lo.value();
+        if (u === null || l === null) { A.toast('上下界都要填'); return; }
+        if (u === l) { A.toast('上下界相同，窗口会是 0 分钟'); }
+        s.blueRange = { upper: Math.max(u, l), lower: Math.min(u, l) };
+        save();
+      });
     }
 
     // ---------------------------------------------------------- 灯具
 
-    function buildLights() {
-      var listBox = A.h('div');
-
-      function paint() {
-        A.clear(listBox);
-        s.lights.forEach(function (L, i) {
-          var evOut = A.h('div', { class: 'hint' });
-          function syncEV() {
-            if (!(L.lux > 0)) {
-              evOut.textContent = '填了照度才能算交叉点。';
-              return;
-            }
-            var ev = E.luxToEV100(L.lux);
-            var at2 = E.luxAtDistance(L.lux, L.distance || 1, 2);
-            evOut.textContent = 'EV100 ' + ev.toFixed(2) +
-              ' · 换到 2 米处约 ' + Math.round(at2) + ' lux（EV100 ' +
-              E.luxToEV100(at2).toFixed(2) + '）';
-          }
-
-          var nameIn = A.h('input', { type: 'text', value: L.name, maxlength: 80 });
-          nameIn.addEventListener('input', function () { L.name = nameIn.value; scheduleSave(); });
-
-          var luxIn = A.h('input', {
-            type: 'number', step: 'any', inputmode: 'decimal', min: 0,
-            value: L.lux === null ? '' : L.lux, placeholder: '例如 1200'
-          });
-          luxIn.addEventListener('input', function () {
-            var v = parseFloat(luxIn.value);
-            L.lux = isFinite(v) && v > 0 ? v : null;
-            syncEV(); scheduleSave();
-          });
-
-          var distIn = A.h('input', {
-            type: 'number', step: 'any', inputmode: 'decimal', min: 0.01,
-            value: L.distance === null ? '' : L.distance
-          });
-          distIn.addEventListener('input', function () {
-            var v = parseFloat(distIn.value);
-            L.distance = isFinite(v) && v > 0 ? v : 1;
-            syncEV(); scheduleSave();
-          });
-
-          syncEV();
-          listBox.appendChild(A.h('div', {
-            style: 'padding:12px 0;border-bottom:1px solid var(--line-soft)'
-          }, [
-            A.h('div', { class: 'field', style: 'margin-bottom:10px' }, [
-              A.h('label', { text: '第 ' + (i + 1) + ' 支' }), nameIn
-            ]),
-            A.h('div', { class: 'row tight' }, [
-              A.h('div', { class: 'field', style: 'margin:0' }, [
-                A.h('label', { text: '照度' }), luxIn
-              ]),
-              A.h('div', { class: 'field', style: 'margin:0' }, [
-                A.h('label', { text: '测量距离（米）' }), distIn
-              ])
-            ]),
-            evOut,
-            A.h('button', {
-              class: 'btn sm ghost', type: 'button', style: 'margin-top:9px',
-              on: { click: function () { s.lights.splice(i, 1); scheduleSave(); paint(); } }
-            }, '删除这支')
-          ]));
-        });
-        if (!s.lights.length) {
-          listBox.appendChild(A.h('p', { class: 'hint', text: '还没有灯具。' }));
-        }
-      }
-      paint();
-
-      return A.h('div', { class: 'card' }, [
-        A.h('div', { class: 'card-head' }, [
-          A.h('h2', { text: '灯具' }),
-          A.h('span', { class: 'meta', text: s.lights.length + ' 支' })
-        ]),
-        A.h('p', { class: 'hint', style: 'margin-top:0' },
-          '填在某个距离上的照度（lux），时间轴会标出环境光衰减到和这支灯相等的那一分钟。'),
-        listBox,
-        A.h('button', {
-          class: 'btn sm', type: 'button', style: 'margin-top:12px',
-          on: {
-            click: function () {
-              s.lights.push({ name: '新灯具', lux: null, distance: 1 });
-              scheduleSave(); paint();
-            }
-          }
-        }, '＋ 加一支灯'),
-        A.h('details', { class: 'fold' }, [
-          A.h('summary', null, '照度怎么填'),
-          A.h('div', { class: 'fold-body' }, [
-            A.h('p', { class: 'hint' },
-              '厂商规格表通常会给"1 米处 XXXX lux"这样的数，直接填进去，距离填 1。' +
-              '手上有测光表的话，把灯摆到实拍距离上直接测一个更准。'),
-            A.h('p', { class: 'hint' },
-              '换算关系：EV100 = log2(照度 ÷ 2.5)。' +
-              '距离变化按平方反比：距离翻倍，照度降到四分之一。'),
-            A.h('p', { class: 'hint' },
-              '几个参考值：160 lux = EV100 6，640 lux = EV100 8，2560 lux = EV100 10。')
-          ])
-        ])
-      ]);
+    function lightRow(L, i) {
+      var sub = L.lux > 0
+        ? Math.round(L.lux) + ' lux @ ' + (L.distance || 1) + ' 米 · EV100 ' + E.luxToEV100(L.lux).toFixed(1)
+        : '还没填照度，时间轴不会标它的交叉点';
+      return row(L.name, sub, function () { editLight(L, i); });
     }
 
-    return function () { disposed = true; flushSave(); };
+    function editLight(L, i) {
+      var isNew = !L;
+      var nameIn = A.h('input', { type: 'text', value: L ? L.name : '', maxlength: 80,
+                                  placeholder: '例如 Aputure MC Pro' });
+      var lux = A.numInput({ value: L ? L.lux : null, placeholder: '例如 1200', onInput: preview });
+      var dist = A.numInput({ value: L ? (L.distance || 1) : 1, onInput: preview });
+      var out = A.h('div', { class: 'hint' });
+      function preview() {
+        if (!lux || !dist) { return; }
+        var x = lux.value(), d = dist.value() || 1;
+        if (!(x > 0)) { out.textContent = '填了照度才能算 EV100。'; return; }
+        var at2 = E.luxAtDistance(x, d, 2);
+        out.textContent = 'EV100 ' + E.luxToEV100(x).toFixed(2) + ' · 换到 2 米处约 ' +
+          Math.round(at2) + ' lux（EV100 ' + E.luxToEV100(at2).toFixed(2) + '）';
+      }
+      preview();
+
+      var actions = [{ label: '取消', value: null, kind: 'ghost' }];
+      if (!isNew) { actions.unshift({ label: '删除', value: 'del', kind: 'danger' }); }
+      actions.push({ label: isNew ? '添加' : '保存', value: 'save', kind: 'primary' });
+
+      A.sheet({
+        title: isNew ? '加一支灯' : '灯具',
+        sub: '填在某个距离上的照度，时间轴会标出环境光衰减到和它相等的那一分钟。',
+        dismissValue: null,
+        body: A.h('div', null, [
+          field('名称', nameIn),
+          A.h('div', { class: 'row' }, [field('照度（lux）', lux.node), field('测量距离（米）', dist.node)]),
+          out
+        ]),
+        actions: actions
+      }).then(function (v) {
+        if (v === 'del') {
+          return A.confirm('删除「' + L.name + '」？', '这支灯会从列表里去掉。', '删除', 'danger')
+            .then(function (ok) {
+              if (!ok) { return; }
+              s.lights.splice(i, 1);
+              save();
+            });
+        }
+        if (v !== 'save') { return; }
+        var name = nameIn.value.trim();
+        if (!name) { A.toast('没填名称'); return; }
+        var x = lux.value(), d = dist.value();
+        var entry = { name: name, lux: x > 0 ? x : null, distance: d > 0 ? d : 1 };
+        if (isNew) { s.lights.push(entry); } else { s.lights[i] = entry; }
+        save();
+      });
+    }
+
+    return function () { disposed = true; };
   }
 
   return { render: render };

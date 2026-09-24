@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
@@ -18,6 +18,16 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
 
+<!-- 主题必须在首次绘制之前定下来，否则每次打开都会先闪一下夜间再跳成日间。
+     所以这里在样式表之前、用同步的 localStorage 读偏好（IndexedDB 是异步的，赶不上）。 -->
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('bh-theme');
+    if (t === 'light' || t === 'dark') { document.documentElement.setAttribute('data-theme', t); }
+  } catch (e) { /* 读不到（无痕模式等）就用默认的夜间 */ }
+}());
+</script>
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -42,6 +52,7 @@
 <script src="js/data/calibration.js"></script>
 <script src="js/data/weather.js"></script>
 <!-- 界面层 -->
+<script src="js/ui/theme.js"></script>
 <script src="js/ui/app.js"></script>
 <script src="js/ui/compass.js"></script>
 <script src="js/ui/viewfinder.js"></script>
@@ -75,6 +86,9 @@
   });
 
   var A = BH.App;
+
+  // 浏览器外壳（地址栏、Android 状态栏）的颜色跟当前主题对齐
+  BH.Theme.syncMeta();
 
   A.route('/', BH.Scout.renderList);
   A.route('/rec/:id', BH.Scout.renderOverview);
@@ -155,14 +169,8 @@
 
   function showUpdateBar(sw) {
     if (document.getElementById('update-bar')) { return; }
-    var bar = A.h('div', {
-      id: 'update-bar',
-      style: 'position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 78px);' +
-             'z-index:80;display:flex;gap:10px;align-items:center;' +
-             'background:#1c1c24;border:1px solid #3a2f18;border-radius:11px;' +
-             'padding:11px 13px;box-shadow:0 8px 28px rgba(0,0,0,.6)'
-    }, [
-      A.h('span', { style: 'flex:1;font-size:13px;color:#9a9184', text: '有新版本' }),
+    var bar = A.h('div', { id: 'update-bar', class: 'update-bar' }, [
+      A.h('span', { class: 'txt', text: '有新版本' }),
       A.h('button', {
         class: 'btn sm ghost', type: 'button',
         on: { click: function () { bar.remove(); } }

@@ -138,6 +138,7 @@
         return;
       }
 
+      view.appendChild(buildWeek());
       rows.forEach(function (r, i) { view.appendChild(buildDay(r, windows[i])); });
       view.appendChild(buildLegend());
     }
@@ -175,6 +176,42 @@
     }
 
     function pct(v) { return v === null ? '—' : Math.round(v) + '%'; }
+
+    /**
+     * 一周总览。七张日卡片一屏只放得下三张，"哪天能拍"要滚完整页才知道。
+     * 这一条把七天的结论并排摆出来：圆点颜色是结论，数字是低云，点一下跳到那天。
+     */
+    function buildWeek() {
+      var strip = A.h('div', { class: 'week' });
+      rows.forEach(function (r, i) {
+        var w = windows[i];
+        var d = Z.parseDateKey(r.dateKey);
+        strip.appendChild(A.h('button', {
+          class: 'wk ' + r.verdict.level + (w.isToday ? ' today' : ''), type: 'button',
+          'aria-label': d.month + '月' + d.day + '日 ' + r.verdict.label,
+          on: {
+            click: function () {
+              var el = document.getElementById('day-' + r.dateKey);
+              if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+            }
+          }
+        }, [
+          A.h('span', { class: 'wd', text: w.isToday ? '今天' : '周' + w.weekday }),
+          A.h('span', { class: 'dt', text: String(d.day) }),
+          A.h('span', { class: 'dot' }),
+          A.h('span', { class: 'lc', text: r.low === null ? '—' : Math.round(r.low) + '%' })
+        ]));
+      });
+      return A.h('div', { class: 'card week-card' }, [
+        strip,
+        A.h('div', { class: 'week-legend' }, [
+          A.h('span', null, [A.h('i', { class: 'dot good' }), '好']),
+          A.h('span', null, [A.h('i', { class: 'dot maybe' }), '可能']),
+          A.h('span', null, [A.h('i', { class: 'dot bad' }), '不建议']),
+          A.h('span', { class: 'hint-inline', text: '数字是低云，点某天看详情' })
+        ])
+      ]);
+    }
 
     function buildDay(r, w) {
       var lvl = r.verdict.level;
@@ -228,7 +265,8 @@
       }
 
       return A.h('div', {
-        class: 'day-card ' + lvl + (w.isToday ? ' today' : '')
+        class: 'day-card ' + lvl + (w.isToday ? ' today' : ''),
+        id: 'day-' + r.dateKey
       }, children);
     }
 

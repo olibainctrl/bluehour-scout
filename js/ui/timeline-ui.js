@@ -86,10 +86,10 @@
         return;
       }
 
-      view.appendChild(buildWindow());
+      // 「现在」面板在范围内时放最上面：站在机器旁边第一眼要看的就是它
       var nowBox = buildNow();
       if (nowBox) { view.appendChild(nowBox); }
-      view.appendChild(buildMoments());
+      view.appendChild(buildSummary());
       view.appendChild(buildShootParams());
       view.appendChild(buildCalibBar());
       view.appendChild(buildTable());
@@ -126,27 +126,58 @@
       ]);
     }
 
-    // ------------------------------------------------------ 窗口大字
+    // ------------------------------------------------ 窗口 + 关键时刻
+    //
+    // 原来是两张卡（窗口大字一张、关键时刻五行列表一张），加起来半屏多，
+    // 把真正要看的逐分钟表压到了一屏半以下。合成一张，时刻改成两列网格。
 
-    function buildWindow() {
+    function buildSummary() {
       var s = result.stats;
+      var tz = rec.tz;
+      var kids = [];
+
       if (s.blueMinutes === null) {
-        return A.h('div', { class: 'window-big bad' }, [
-          A.h('div', null, [A.h('span', { class: 'n', text: '—' })]),
-          A.h('div', { class: 'sub', text: '这一天太阳降不到设定的蓝调下界，算不出窗口。' })
-        ]);
+        kids.push(A.h('div', { class: 'sum-top' }, [
+          A.h('span', { class: 'n bad', text: '—' }),
+          A.h('span', { class: 'u', text: '这一天太阳降不到设定的蓝调下界，算不出窗口。' })
+        ]));
+      } else {
+        var mins = Math.round(s.blueMinutes);
+        kids.push(A.h('div', { class: 'sum-top' }, [
+          A.h('span', { class: 'n' + (mins < 20 ? ' bad' : ''), text: String(mins) }),
+          A.h('span', { class: 'u', text: '分钟蓝调' }),
+          A.h('span', { class: 'range', text: A.deg(s.blueUpper, 0) + ' → ' + A.deg(s.blueLower, 0) })
+        ]));
+        kids.push(A.h('div', { class: 'sum-win' },
+          Z.formatTime(s.blueStart, tz) + ' – ' + Z.formatTime(s.blueEnd, tz)));
       }
-      var mins = Math.round(s.blueMinutes);
-      return A.h('div', { class: 'window-big' + (mins < 20 ? ' bad' : '') }, [
-        A.h('div', null, [
-          A.h('span', { class: 'n', text: String(mins) }),
-          A.h('span', { class: 'u', text: '分钟' })
-        ]),
-        A.h('div', { class: 'sub' }, [
-          '蓝调窗口 ',
-          A.h('b', { text: Z.formatTime(s.blueStart, rec.tz) + '–' + Z.formatTime(s.blueEnd, rec.tz) }),
-          '，太阳视高度角 ' + A.deg(s.blueUpper) + ' → ' + A.deg(s.blueLower) + '。'
-        ])
+
+      var cells = [];
+      if (s.realSunsetMs !== null) {
+        var sh = Math.round(s.sunsetShiftMinutes);
+        cells.push(cell('真实日落', Z.formatTime(s.realSunsetMs, tz),
+          sh > 0 ? '早 ' + sh + ' 分' : (sh < 0 ? '晚 ' + (-sh) + ' 分' : '与天文日落同时'), true));
+      } else if (s.occludedFromStart) {
+        cells.push(cell('真实日落', '更早', '起点前已被挡住', true));
+      } else if (!result.hasHorizon) {
+        cells.push(cell('真实日落', '—', '还没采剖面'));
+      }
+      cells.push(cell('天文日落', Z.formatTime(s.astroSunsetMs, tz)));
+      if (s.civilDuskMs) { cells.push(cell('民用昏影 −6°', Z.formatTime(s.civilDuskMs, tz))); }
+      if (s.nauticalDuskMs) { cells.push(cell('航海昏影 −12°', Z.formatTime(s.nauticalDuskMs, tz))); }
+      s.lights.forEach(function (L) {
+        cells.push(cell(L.name, Z.formatTime(L.ms, tz), '追平 EV100 ' + L.ev100.toFixed(1)));
+      });
+      kids.push(A.h('div', { class: 'sum-grid' }, cells));
+
+      return A.h('div', { class: 'summary-card' }, kids);
+    }
+
+    function cell(k, v, x, hi) {
+      return A.h('div', { class: 'sc' + (hi ? ' hi' : '') }, [
+        A.h('div', { class: 'k', text: k }),
+        A.h('div', { class: 'v', text: v }),
+        x ? A.h('div', { class: 'x', text: x }) : null
       ]);
     }
 
@@ -202,66 +233,21 @@
       fillNow(box, result.rows[i], result.rows[i].auto);
     }
 
-    // ------------------------------------------------------ 关键时刻
-
-    function buildMoments() {
-      var s = result.stats;
-      var items = [];
-
-      if (s.realSunsetMs !== null) {
-        items.push({
-          k: '真实日落（被地平线挡住）',
-          v: Z.formatTime(s.realSunsetMs, rec.tz),
-          x: '比天文日落早 ' + s.sunsetShiftMinutes.toFixed(0) + ' 分',
-          hi: true
-        });
-      } else if (s.occludedFromStart) {
-        items.push({ k: '真实日落', v: '更早', x: '时间轴起点前就已被挡住', hi: true });
-      } else if (!result.hasHorizon) {
-        items.push({ k: '真实日落', v: '—', x: '还没采地平线剖面' });
-      }
-
-      items.push({ k: '天文日落', v: Z.formatTime(s.astroSunsetMs, rec.tz) });
-      if (s.civilDuskMs) { items.push({ k: '民用昏影终（−6°）', v: Z.formatTime(s.civilDuskMs, rec.tz) }); }
-      if (s.nauticalDuskMs) { items.push({ k: '航海昏影终（−12°）', v: Z.formatTime(s.nauticalDuskMs, rec.tz) }); }
-
-      s.lights.forEach(function (L) {
-        items.push({
-          k: L.name + ' 追平环境光',
-          v: Z.formatTime(L.ms, rec.tz),
-          x: 'EV100 ' + L.ev100.toFixed(1)
-        });
-      });
-
-      var ul = A.h('ul', { class: 'moments' });
-      items.forEach(function (it) {
-        ul.appendChild(A.h('li', { class: it.hi ? 'hi' : null }, [
-          A.h('span', { class: 'k', text: it.k }),
-          A.h('span', { class: 'v', text: it.v }),
-          it.x ? A.h('span', { class: 'x', text: it.x }) : null
-        ]));
-      });
-
-      return A.h('div', { class: 'card' }, [
-        A.h('div', { class: 'card-head' }, [
-          A.h('h2', { text: '关键时刻' }),
-          A.h('span', { class: 'meta', text: Z.offsetLabel(s.astroSunsetMs, rec.tz) })
-        ]),
-        ul,
-        !result.hasHorizon ? A.h('p', { class: 'hint' },
-          '这条记录还没有地平线剖面，所以只能给天文日落。真实日落往往比它早十几分钟——' +
-          '回第 3 步采一圈就能算出来。') : null
-      ]);
-    }
-
     // ------------------------------------------------------ 拍摄参数
+    //
+    // setup 数改成步进器 − n +：1–30 的小整数不该弹键盘；而且改动只重算
+    // 核算那一行，不整页重建（整页重建会把控件自己销毁、抢走焦点）。
 
     function buildShootParams() {
-      var lensSel = A.h('select');
+      var lensSel = A.h('select', { 'aria-label': '当前镜头' });
       settings.lenses.forEach(function (L, i) {
         lensSel.appendChild(A.h('option', { value: i },
           L.name + (L.maxAperture ? '  T' + L.maxAperture : '')));
       });
+      if (!settings.lenses.length) {
+        lensSel.appendChild(A.h('option', { value: '' }, '还没有镜头，去项目设置里加'));
+        lensSel.disabled = true;
+      }
       lensSel.value = String(settings.selectedLens);
       lensSel.addEventListener('change', function () {
         settings.selectedLens = parseInt(lensSel.value, 10);
@@ -271,55 +257,47 @@
         });
       });
 
-      var setupsIn = A.h('input', {
-        type: 'number', inputmode: 'numeric', min: 1, max: 99, step: 1,
-        value: rec.setups === null ? '' : rec.setups, placeholder: '几个'
-      });
-      var budgetOut = A.h('div', { class: 'hint' });
+      var budgetOut = A.h('div', { class: 'budget' });
       function syncBudget() {
         var b = result.stats.budget;
-        if (!b) { budgetOut.textContent = '填了 setup 数才做核算。'; return; }
-        if (b.ok) {
-          budgetOut.innerHTML = '每个 setup 平均 <strong>' + b.perSetup.toFixed(1) +
-            ' 分钟</strong>，够用（门槛 ' + b.minPerSetup + ' 分钟）。';
-        } else {
-          budgetOut.innerHTML = '<strong style="color:var(--bad)">每个 setup 只有 ' +
-            b.perSetup.toFixed(1) + ' 分钟</strong>，低于 ' + b.minPerSetup +
-            ' 分钟门槛。这个窗口最多排 <strong>' + b.maxSetups +
-            '</strong> 个，建议砍掉 <strong>' + b.cut + '</strong> 个。';
+        budgetOut.className = 'budget' + (b && !b.ok ? ' bad' : '');
+        if (!b) {
+          budgetOut.textContent = rec.setups === null ? '不做核算' : '窗口为空，无从核算';
+          return;
         }
+        budgetOut.innerHTML = b.ok
+          ? '每个 <b>' + b.perSetup.toFixed(1) + '</b> 分钟'
+          : '每个只有 <b>' + b.perSetup.toFixed(1) + '</b> 分钟，最多排 ' + b.maxSetups +
+            ' 个，建议砍 <b>' + b.cut + '</b> 个';
       }
-      // 这里**不能**整页重建：paint() 会把这个输入框本身销毁重建，
-      // 焦点随之丢失，想输入两位数就变成只能输第一位。
-      // 核算只依赖窗口时长和 setup 数，就地重算即可。
-      var setupsSaveTimer = null;
-      setupsIn.addEventListener('input', function () {
-        var v = parseInt(setupsIn.value, 10);
-        rec.setups = (isFinite(v) && v >= 1 && v <= 99) ? v : null;
-        result.stats.budget = TL.budgetFor(result.stats.blueMinutes, rec.setups);
-        syncBudget();
-        if (setupsSaveTimer) { clearTimeout(setupsSaveTimer); }
-        setupsSaveTimer = setTimeout(function () {
-          if (disposed) { return; }
-          R.save(rec);
-        }, 600);
+
+      var saveTimer = null;
+      var setupsSt = A.stepper({
+        value: rec.setups, min: 1, max: 30, start: 3, nullable: true, emptyText: '—',
+        onChange: function (v) {
+          rec.setups = v;
+          result.stats.budget = TL.budgetFor(result.stats.blueMinutes, v);
+          syncBudget();
+          if (saveTimer) { clearTimeout(saveTimer); }
+          saveTimer = setTimeout(function () { if (!disposed) { R.save(rec); } }, 500);
+        }
       });
       syncBudget();
 
       var t = result.shutterSec;
-      return A.h('div', { class: 'card' }, [
-        A.h('div', { class: 'card-head' }, [
-          A.h('h2', { text: '拍摄参数' }),
-          A.h('span', { class: 'meta', text: t ? '1/' + Math.round(1 / t) + 's · ' +
-            settings.camera.shutterAngle + '° · ' + settings.camera.fps + 'fps' : '' })
+      return A.h('div', { class: 'card shoot' }, [
+        A.h('div', { class: 'shoot-row' }, [
+          A.h('span', { class: 'k', text: '镜头' }),
+          lensSel
         ]),
-        A.h('div', { class: 'field' }, [A.h('label', { text: '当前镜头' }), lensSel]),
-        A.h('div', { class: 'field' }, [
-          A.h('label', null, ['这个机位计划拍几个 setup ',
-            A.h('span', { class: 'unit', text: '（拍摄量核算）' })]),
-          setupsIn
+        A.h('div', { class: 'shoot-row' }, [
+          A.h('span', { class: 'k', text: 'setup' }),
+          setupsSt.node,
+          budgetOut
         ]),
-        budgetOut
+        A.h('div', { class: 'hint', style: 'margin-top:4px' },
+          t ? '快门 1/' + Math.round(1 / t) + ' 秒 · 每个 setup 至少 ' + TL.MIN_PER_SETUP + ' 分钟'
+            : '帧率或快门角度无效，算不出 T 档')
       ]);
     }
 
@@ -328,29 +306,28 @@
     function buildCalibBar() {
       var c = calibInfo;
       var on = !!(c && c.calib);
-      var txt;
+      var main, sub;
       if (!on) {
-        txt = [A.h('b', { text: '通用模型。' }),
-               '还没有实测点。在下面的表格里点任意一行可以记一个现场读数，' +
-               '攒够 ' + E.MIN_FOR_SLOPE + ' 个就会自动拟合。'];
+        main = '通用模型';
+        sub = '点表格任一行记一个现场读数，攒够 ' + E.MIN_FOR_SLOPE + ' 个自动拟合';
       } else {
-        var src = c.calib.source === 'location' ? '本地点' : '全局';
-        txt = [
-          A.h('b', { text: '已用 ' + c.calib.n + ' 个实测点校准（' + src + '）。' }),
-          c.calib.slopeFitted
-            ? '拟合了偏移和斜率：EV = ' + c.calib.a.toFixed(3) + ' × 模型 ' +
-              (c.calib.b >= 0 ? '+ ' : '− ') + Math.abs(c.calib.b).toFixed(2) + '。'
-            : '点数不足 ' + E.MIN_FOR_SLOPE + ' 个，只修正了偏移量 ' +
-              (c.calib.b >= 0 ? '+' : '') + c.calib.b.toFixed(2) + '。',
-          c.rms !== null ? ' 残差 ' + c.rms.toFixed(2) + ' EV。' : ''
-        ];
+        main = '已用 ' + c.calib.n + ' 个实测点校准（' +
+               (c.calib.source === 'location' ? '本地点' : '全局') + '）';
+        sub = c.calib.slopeFitted
+          ? 'EV = ' + c.calib.a.toFixed(3) + ' × 模型 ' + (c.calib.b >= 0 ? '+ ' : '− ') +
+            Math.abs(c.calib.b).toFixed(2) + (c.rms !== null ? '，残差 ' + c.rms.toFixed(2) + ' EV' : '')
+          : '点数不足 ' + E.MIN_FOR_SLOPE + ' 个，只修正了偏移 ' +
+            (c.calib.b >= 0 ? '+' : '') + c.calib.b.toFixed(2);
       }
-      return A.h('div', { class: 'calib' + (on ? ' on' : '') }, [
-        A.h('div', { style: 'flex:1' }, txt),
-        A.h('button', {
-          class: 'btn sm ghost', type: 'button', style: 'flex:none',
-          on: { click: showCalibPoints }
-        }, '实测点')
+      return A.h('button', {
+        class: 'calib' + (on ? ' on' : ''), type: 'button',
+        on: { click: showCalibPoints }
+      }, [
+        A.h('span', { class: 'body' }, [
+          A.h('b', { text: main }),
+          A.h('span', { class: 's', text: sub })
+        ]),
+        A.h('span', { class: 'chev', text: '›' })
       ]);
     }
 
@@ -413,9 +390,9 @@
         A.h('p', { class: 'hint', style: 'margin-top:0' }, '点任意一行可以记一个现场实测读数。'),
         tableWrap,
         A.h('div', { class: 'tl-legend' }, [
-          A.h('span', null, [A.h('i', { style: 'background:#2a2110;border:1px solid #4d3d1d' }), '现在']),
-          A.h('span', null, [A.h('i', { style: 'background:#241b0c' }), '真实日落']),
-          A.h('span', null, [A.h('i', { style: 'background:#0d1017' }), '蓝调窗口']),
+          A.h('span', null, [A.h('i', { class: 'sw-now' }), '现在']),
+          A.h('span', null, [A.h('i', { class: 'sw-rs' }), '真实日落']),
+          A.h('span', null, [A.h('i', { class: 'sw-blue' }), '蓝调窗口']),
           A.h('span', null, ['● 被地平线挡住']),
           result.stats.lights.length ? A.h('span', null, ['◆ 补光追平']) : null,
           A.h('span', null, ['＞T / ＜T 超出常用档位表'])
@@ -444,27 +421,26 @@
 
     function recordSheet(w) {
       var predicted = w.ev100;
-      var evIn = A.h('input', {
-        type: 'number', step: 'any', inputmode: 'decimal',
-        placeholder: '例如 ' + predicted.toFixed(1)
-      });
+      // 航海暮光时的 EV100 是负的；iOS 的 decimal 键盘上没有负号，带 ± 键
+      var evNI = A.numInput({ placeholder: '例如 ' + predicted.toFixed(1), signed: true,
+                              ariaLabel: '实测 EV100' });
+      var evIn = evNI.input;
 
       // 测光表给的是光圈+快门+ISO，提供一个换算入口
-      var nIn = A.h('input', { type: 'number', step: 'any', inputmode: 'decimal', placeholder: 'T 档' });
-      var isoIn = A.h('input', { type: 'number', step: 'any', inputmode: 'numeric',
-                                 value: w.auto ? w.auto.iso : result.isoLow });
-      var shIn = A.h('input', { type: 'number', step: 'any', inputmode: 'numeric',
-                                value: result.shutterSec ? Math.round(1 / result.shutterSec) : 48 });
+      var nNI = A.numInput({ placeholder: 'T 档', ariaLabel: 'T 档', onInput: function () { conv(); } });
+      var isoNI = A.numInput({ value: w.auto ? w.auto.iso : result.isoLow, integer: true,
+                               ariaLabel: 'ISO', onInput: function () { conv(); } });
+      var shNI = A.numInput({ value: result.shutterSec ? Math.round(1 / result.shutterSec) : 48,
+                              integer: true, ariaLabel: '快门 1/x 秒', onInput: function () { conv(); } });
       var convOut = A.h('div', { class: 'hint' });
       function conv() {
-        var n = parseFloat(nIn.value), iso = parseFloat(isoIn.value), inv = parseFloat(shIn.value);
+        var n = nNI.value(), iso = isoNI.value(), inv = shNI.value();
         var t = (inv > 0) ? 1 / inv : null;
         var v = E.ev100From(n, t, iso);
         if (v === null) { convOut.textContent = '三个都填了才能换算。'; return null; }
         convOut.innerHTML = '换算得 EV100 <strong>' + v.toFixed(2) + '</strong>';
         return v;
       }
-      [nIn, isoIn, shIn].forEach(function (el) { el.addEventListener('input', conv); });
       conv();
 
       var useBtn = A.h('button', {
@@ -473,7 +449,7 @@
           click: function () {
             var v = conv();
             if (v === null) { A.toast('三个都填了才能换算'); return; }
-            evIn.value = Math.round(v * 100) / 100;
+            evNI.set(Math.round(v * 100) / 100);
           }
         }
       }, '填进上面的 EV100');
@@ -491,9 +467,9 @@
             A.h('summary', null, '从光圈 / 快门 / ISO 换算'),
             A.h('div', { class: 'fold-body' }, [
               A.h('div', { class: 'row tight', style: 'margin-top:14px' }, [
-                A.h('div', { class: 'field', style: 'margin:0' }, [A.h('label', { text: 'T 档' }), nIn]),
-                A.h('div', { class: 'field', style: 'margin:0' }, [A.h('label', { text: '1/x 秒' }), shIn]),
-                A.h('div', { class: 'field', style: 'margin:0' }, [A.h('label', { text: 'ISO' }), isoIn])
+                A.h('div', { class: 'field', style: 'margin:0' }, [A.h('label', { text: 'T 档' }), nNI.node]),
+                A.h('div', { class: 'field', style: 'margin:0' }, [A.h('label', { text: '1/x 秒' }), shNI.node]),
+                A.h('div', { class: 'field', style: 'margin:0' }, [A.h('label', { text: 'ISO' }), isoNI.node])
               ]),
               convOut, useBtn
             ])
@@ -506,8 +482,8 @@
         onOpen: function () { evIn.focus(); }
       }).then(function (v) {
         if (v !== 'save') { return; }
-        var ev = parseFloat(evIn.value);
-        if (!isFinite(ev)) { A.toast('没填实测 EV100'); return; }
+        var ev = evNI.value();
+        if (ev === null) { A.toast('没填实测 EV100'); return; }
         Cal.add({
           recordId: rec.id, dateKey: dateKey, ms: w.ms,
           alt: w.altitude, ev100: ev

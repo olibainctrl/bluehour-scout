@@ -70,12 +70,149 @@
     return n;
   }
 
+  // ------------------------------------------------------------ 图标
+  //
+  // 全部单色、描边用 currentColor，跟着文字颜色和主题走。
+  // 原来用的 📍🧭📷☀☁ 是彩色 emoji：在暗色界面里每个都是一小块亮色，
+  // 违背"不要有亮色块、别破坏暗适应"的原则；而且各平台渲染不一，☀ 在
+  // 圆形徽章里小到几乎看不见。
+
+  var ICONS = {
+    sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/>',
+    moon: '<path d="M20 14.6A8.2 8.2 0 1 1 9.4 4a6.6 6.6 0 0 0 10.6 10.6z"/>',
+    pin: '<path d="M12 21.2s-6.6-5.7-6.6-11.1a6.6 6.6 0 0 1 13.2 0c0 5.4-6.6 11.1-6.6 11.1z"/><circle cx="12" cy="10.1" r="2.4"/>',
+    compass: '<circle cx="12" cy="12" r="9"/><path d="M15.6 8.4l-2.3 5-4.9 2.2 2.3-5z"/>',
+    camera: '<path d="M4 8.2h3.1l1.7-2.3h6.4l1.7 2.3H20V19H4z"/><circle cx="12" cy="13.4" r="3.4"/>',
+    cloud: '<path d="M7.2 18.2h10a4.1 4.1 0 0 0 .5-8.2 5.6 5.6 0 0 0-10.6-.9 4.6 4.6 0 0 0 .1 9.1z"/>',
+    sunset: '<path d="M3 17.5h18M6.5 17.5a5.5 5.5 0 0 1 11 0M12 5v2.6M5 9.3l1.8 1.8M19 9.3l-1.8 1.8M3.5 21h17"/>',
+    back: '<path d="M14.8 5.2 8 12l6.8 6.8"/>',
+    plus: '<path d="M12 5.5v13M5.5 12h13"/>',
+    minus: '<path d="M5.5 12h13"/>'
+  };
+
+  function icon(name, size) {
+    var sz = size || 18;
+    var span = document.createElement('span');
+    span.className = 'ico';
+    span.setAttribute('aria-hidden', 'true');
+    span.innerHTML = '<svg viewBox="0 0 24 24" width="' + sz + '" height="' + sz + '" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+      (ICONS[name] || '') + '</svg>';
+    return span;
+  }
+
   function clear(node) {
     while (node.firstChild) { node.removeChild(node.firstChild); }
     return node;
   }
 
   function $(sel, ctx) { return (ctx || document).querySelector(sel); }
+
+  // ------------------------------------------------------------ 数字输入
+
+  /**
+   * 数字输入框。
+   *
+   * 用 type="text" + inputmode="decimal"，**不用** type="number"：
+   *  - iOS 的 decimal 小键盘上**没有负号**。南半球的纬度、剖面的负仰角、
+   *    蓝调区间下界 −9°、航海暮光时的 EV100 全都输不进去——
+   *    在悉尼连自己的纬度都填不了。所以 signed 为 true 时带一个 ± 键。
+   *  - type="number" 下单独一个 "-" 是非法值，value 会被清空，
+   *    没法实现"先按负号再输数字"。
+   *  - 某些地区的小键盘小数点是逗号，这里统一换成点再解析。
+   *
+   * @param {Object} o {value, placeholder, signed, integer, onInput(num|null), ariaLabel}
+   * @returns {{node, input, value: function():(number|null), set: function(v)}}
+   */
+  function numInput(o) {
+    o = o || {};
+    var input = h('input', {
+      type: 'text',
+      inputmode: o.integer ? 'numeric' : 'decimal',
+      autocomplete: 'off', autocorrect: 'off', autocapitalize: 'off', spellcheck: 'false',
+      placeholder: o.placeholder || null,
+      'aria-label': o.ariaLabel || null
+    });
+    input.value = (o.value === null || o.value === undefined) ? '' : String(o.value);
+
+    function parse() {
+      var t = String(input.value).replace(/[\u2212\u2013\u2014]/g, '-').replace(',', '.').trim();
+      if (t === '' || t === '-' || t === '.' || t === '-.') { return null; }
+      var n = o.integer ? parseInt(t, 10) : parseFloat(t);
+      return isFinite(n) ? n : null;
+    }
+
+    input.addEventListener('input', function () {
+      // 只留数字、一个小数点，以及（signed 时）开头一个负号
+      var raw = input.value;
+      var clean = raw.replace(/[\u2212\u2013\u2014]/g, '-').replace(/,/g, '.');
+      var neg = !!o.signed && clean.charAt(0) === '-';
+      clean = clean.replace(/[^0-9.]/g, '');
+      if (o.integer) { clean = clean.replace(/\./g, ''); }
+      var dot = clean.indexOf('.');
+      if (dot >= 0) { clean = clean.slice(0, dot + 1) + clean.slice(dot + 1).replace(/\./g, ''); }
+      clean = (neg ? '-' : '') + clean;
+      if (clean !== raw) { input.value = clean; }
+      if (o.onInput) { o.onInput(parse()); }
+    });
+
+    var kids = [input];
+    if (o.signed) {
+      var pm = h('button', { class: 'pm', type: 'button', 'aria-label': '切换正负号' }, '±');
+      // 按下时阻止默认行为，焦点留在输入框里，键盘不会收起再弹出
+      pm.addEventListener('pointerdown', function (e) { e.preventDefault(); });
+      pm.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      pm.addEventListener('click', function () {
+        var v = input.value;
+        input.value = v.charAt(0) === '-' ? v.slice(1) : '-' + v;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.focus();
+      });
+      kids.push(pm);
+    }
+    return {
+      node: h('div', { class: 'num-wrap' + (o.signed ? ' signed' : '') }, kids),
+      input: input,
+      value: parse,
+      set: function (v) { input.value = (v === null || v === undefined) ? '' : String(v); }
+    };
+  }
+
+  /**
+   * 整数步进器 − n +。小范围整数（比如 setup 数）不该弹键盘。
+   * nullable 为 true 时，在最小值上再按 − 会回到"未填"。
+   */
+  function stepper(o) {
+    var v = (typeof o.value === 'number' && isFinite(o.value)) ? o.value : null;
+    var out = h('span', { class: 'sv' });
+    var dec = h('button', { class: 'sb', type: 'button', 'aria-label': '减一' }, icon('minus', 18));
+    var inc = h('button', { class: 'sb', type: 'button', 'aria-label': '加一' }, icon('plus', 18));
+
+    function paint() {
+      out.textContent = v === null ? (o.emptyText || '—') : String(v);
+      dec.disabled = v === null || (!o.nullable && v <= o.min);
+      inc.disabled = v !== null && v >= o.max;
+    }
+    function set(n, silent) {
+      if (n !== null) { n = Math.max(o.min, Math.min(o.max, Math.round(n))); }
+      v = n;
+      paint();
+      if (!silent && o.onChange) { o.onChange(v); }
+    }
+    dec.addEventListener('click', function () {
+      if (v === null) { return; }
+      set(v <= o.min ? (o.nullable ? null : o.min) : v - 1);
+    });
+    inc.addEventListener('click', function () {
+      set(v === null ? (o.start || o.min) : v + 1);
+    });
+    paint();
+    return {
+      node: h('div', { class: 'stepper' }, [dec, out, inc]),
+      value: function () { return v; },
+      set: function (n) { set(n, true); }
+    };
+  }
 
   // ------------------------------------------------------------ 数字格式
 
@@ -188,15 +325,13 @@
     }).then(function (v) { return v === true; });
   }
 
-  /** 数字输入抽屉。返回 Promise<number|null|'clear'>。 */
+  /** 数字输入抽屉。返回 Promise<number|null|'clear'>。opts.signed 为 true 时带 ± 键。 */
   function numberSheet(opts) {
-    var input = h('input', {
-      type: 'number',
-      step: opts.step === undefined ? 'any' : opts.step,
-      inputmode: 'decimal',
-      value: (opts.value === null || opts.value === undefined) ? '' : String(opts.value),
-      placeholder: opts.placeholder || ''
+    var ni = numInput({
+      value: opts.value, placeholder: opts.placeholder,
+      signed: !!opts.signed, integer: !!opts.integer
     });
+    var input = ni.input;
     var actions = [{ label: '取消', value: null, kind: 'ghost' }];
     if (opts.allowClear) { actions.push({ label: '清空', value: 'clear', kind: 'danger' }); }
     actions.push({ label: '确定', value: '__ok', kind: 'primary' });
@@ -207,7 +342,7 @@
       dismissValue: null,
       body: h('div', { class: 'field' }, [
         opts.label ? h('label', { text: opts.label }) : null,
-        input
+        ni.node
       ]),
       actions: actions,
       onOpen: function (panel, finish) {
@@ -220,8 +355,8 @@
     }).then(function (v) {
       if (v === null || v === undefined) { return null; }
       if (v === 'clear') { return 'clear'; }
-      var n = parseFloat(input.value);
-      if (!isFinite(n)) { return null; }
+      var n = ni.value();
+      if (n === null) { return null; }
       if (opts.min !== undefined && n < opts.min) { n = opts.min; }
       if (opts.max !== undefined && n > opts.max) { n = opts.max; }
       return n;
@@ -288,15 +423,35 @@
       topbarEl.appendChild(h('button', {
         class: 'back', type: 'button', 'aria-label': '返回',
         on: { click: opts.back === true ? back : opts.back }
-      }, '‹'));
+      }, icon('back', 22)));
     }
     topbarEl.appendChild(h('h1', null, [
       opts.title || '',
       opts.sub ? h('span', { class: 'sub', text: opts.sub }) : null
     ]));
-    if (opts.actions && opts.actions.length) {
-      topbarEl.appendChild(h('div', { class: 'actions' }, opts.actions));
-    }
+    var acts = (opts.actions || []).slice();
+    acts.push(themeButton());
+    topbarEl.appendChild(h('div', { class: 'actions' }, acts));
+  }
+
+  /** 日/夜切换按钮。每一页的顶栏右上角都有，一下就能切。 */
+  function themeButton() {
+    var T = root.BH.Theme;
+    var light = T && T.get() === 'light';
+    var btn = h('button', {
+      class: 'theme-btn', type: 'button',
+      'aria-label': light ? '切到夜间' : '切到日间',
+      title: light ? '切到夜间' : '切到日间'
+    }, icon(light ? 'moon' : 'sun', 19));
+    btn.addEventListener('click', function () {
+      if (!T) { return; }
+      var now = T.toggle();
+      clear(btn);
+      btn.appendChild(icon(now === 'light' ? 'moon' : 'sun', 19));
+      btn.setAttribute('aria-label', now === 'light' ? '切到夜间' : '切到日间');
+      toast(now === 'light' ? '日间模式' : '夜间模式', 1200);
+    });
+    return btn;
   }
 
   function setDock(nodes) {
@@ -311,6 +466,32 @@
     viewEl = opts.view;
     dockEl = opts.dock;
     window.addEventListener('hashchange', dispatch);
+
+    // iOS 上 body 是 position:fixed、内容在 .view 里滚，键盘弹起时
+    // 系统不一定会把正在输入的框滚进视野，这里补一下
+    viewEl.addEventListener('focusin', function (e) {
+      var t = e.target;
+      if (!t || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) { return; }
+      setTimeout(function () {
+        try { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+        catch (x) { t.scrollIntoView(); }
+      }, 320);
+    });
+
+    // iOS 键盘弹起时 layout viewport 不缩，固定在底部的抽屉会被键盘整个盖住——
+    // 剖面格子手填、记录实测都是在抽屉里输数字的。用 visualViewport 量出
+    // 键盘高度写进 --kb，抽屉据此整体上移。
+    if (root.visualViewport) {
+      var vv = root.visualViewport;
+      var syncKb = function () {
+        var kb = Math.max(0, root.innerHeight - vv.height - vv.offsetTop);
+        document.documentElement.style.setProperty('--kb', Math.round(kb) + 'px');
+      };
+      vv.addEventListener('resize', syncKb);
+      vv.addEventListener('scroll', syncKb);
+      syncKb();
+    }
+
     dispatch();
   }
 
@@ -329,9 +510,10 @@
   }
 
   return {
-    h: h, svg: svg, clear: clear, append: append, $: $,
+    h: h, svg: svg, clear: clear, append: append, $: $, icon: icon,
     fx: fx, deg: deg, pad2: pad2, compassName: compassName, relTime: relTime,
     toast: toast, sheet: sheet, confirm: confirm, numberSheet: numberSheet,
+    numInput: numInput, stepper: stepper,
     route: route, go: go, back: back, start: start,
     setTop: setTop, setDock: setDock, currentPath: currentPath,
     download: download

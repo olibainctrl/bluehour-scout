@@ -23,10 +23,59 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
-  var A = null, R = null, H = null, C = null, Z = null, HU = null;
+  var A = null, R = null, H = null, C = null, Z = null, HU = null, TL = null, St = null;
   function deps() {
     A = A || root.BH.App; R = R || root.BH.Records; H = H || root.BH.Horizon;
     C = C || root.BH.Compass; Z = Z || root.BH.Tz; HU = HU || root.BH.HorizonUI;
+    TL = TL || root.BH.Timeline; St = St || root.BH.Settings;
+  }
+
+  /**
+   * 下一个蓝调窗口：今天的还没结束就给今天，已经过了就给明天。
+   * 列表和概览页都用——"今晚几点"是打开这个工具时最想先知道的事，
+   * 原来却要点进记录、再点进时间轴才看得到。
+   * 只关心时刻，所以不带校准（校准只影响 EV，不影响时间）。
+   */
+  function nextWindow(rec, settings) {
+    if (rec.lat === null || rec.lon === null) { return null; }
+    var now = Date.now();
+    var key = Z.dateKey(now, rec.tz);
+    var r = TL.build({ rec: rec, dateKey: key, settings: settings, calib: null });
+    var label = '今晚';
+    if (r.ok && r.stats.blueEnd !== null && now > r.stats.blueEnd) {
+      var d = Z.parseDateKey(key);
+      var t = new Date(Date.UTC(d.year, d.month - 1, d.day + 1));
+      key = Z.pad(t.getUTCFullYear(), 4) + '-' + Z.pad(t.getUTCMonth() + 1, 2) + '-' + Z.pad(t.getUTCDate(), 2);
+      r = TL.build({ rec: rec, dateKey: key, settings: settings, calib: null });
+      label = '明晚';
+    } else if (r.ok && r.stats.blueStart !== null && now >= r.stats.blueStart && now <= r.stats.blueEnd) {
+      label = '正在进行';
+    }
+    if (!r.ok) { return { ok: false, label: label, error: r.error }; }
+    return {
+      ok: true, label: label, dateKey: key,
+      start: r.stats.blueStart, end: r.stats.blueEnd, minutes: r.stats.blueMinutes,
+      realSunset: r.stats.realSunsetMs, shift: r.stats.sunsetShiftMinutes,
+      astroSunset: r.stats.astroSunsetMs, hasHorizon: r.hasHorizon
+    };
+  }
+
+  /** 把 nextWindow 的结果写成一两行人话。 */
+  function describeWindow(nw, tz) {
+    if (!nw) { return ['还没有坐标']; }
+    if (!nw.ok) { return [nw.error || '算不出窗口']; }
+    var lines = [];
+    lines.push(nw.start === null
+      ? nw.label + '没有蓝调窗口'
+      : nw.label + '蓝调 ' + Z.formatTime(nw.start, tz) + '–' + Z.formatTime(nw.end, tz) +
+        ' · ' + Math.round(nw.minutes) + ' 分钟');
+    if (nw.realSunset !== null) {
+      lines.push('真实日落 ' + Z.formatTime(nw.realSunset, tz) +
+        (nw.shift > 0.5 ? '，比天文日落早 ' + Math.round(nw.shift) + ' 分' : ''));
+    } else if (!nw.hasHorizon) {
+      lines.push('天文日落 ' + Z.formatTime(nw.astroSunset, tz) + ' · 还没采剖面，算不出真实日落');
+    }
+    return lines;
   }
 
   var SAVE_DEBOUNCE = 600;
@@ -179,12 +228,13 @@
     var disposed = false;
     view.appendChild(listBox);
 
-    R.list().then(function (rows) {
+    Promise.all([R.list(), St.load()]).then(function (res) {
       if (disposed) { return; }
+      var rows = res[0], settings = res[1];
       A.clear(listBox);
       if (!rows.length) {
         listBox.appendChild(A.h('div', { class: 'empty' }, [
-          A.h('div', { class: 'big', text: '☾' }),
+          A.h('div', { class: 'big' }, A.icon('moon', 40)),
           A.h('p', { html: '还没有勘景记录。<br>到现场新建一条，四步走完：坐标、朝向、天际线剖面、照片备注。' })
         ]));
         return;
@@ -199,12 +249,11 @@
             ? A.h('span', { class: 'badge warn', text: '剖面 ' + n + '/36' })
             : A.h('span', { class: 'badge mute', text: '无剖面' });
 
-        var coords = (rec.lat !== null && rec.lon !== null)
-          ? rec.lat.toFixed(5) + ', ' + rec.lon.toFixed(5)
-          : '未记录坐标';
-        var heading = rec.heading !== null
-          ? '朝向 ' + Math.round(rec.heading) + '° ' + A.compassName(rec.heading)
-          : '未记朝向';
+        // 原来这里显示的是五位小数的经纬度——对列表毫无用处。
+        // 换成最想先知道的那件事：下一个蓝调窗口几点。
+        var nw = null;
+        try { nw = nextWindow(rec, settings); } catch (e) { nw = { ok: false, error: '计算出错' }; }
+        var lines = describeWindow(nw, rec.tz);
 
         ul.appendChild(A.h('li', null,
           A.h('button', {
@@ -215,8 +264,8 @@
               A.h('span', { class: 'name', text: rec.name || '未命名地点' }),
               badge
             ]),
-            A.h('div', { class: 'd', text: coords + ' · ' + heading }),
-            A.h('div', { class: 'd', text: (rec.hasPhoto ? '有照片 · ' : '') + A.relTime(rec.updatedAt) })
+            A.h('div', { class: 'w' + (nw && nw.ok && nw.start !== null ? '' : ' mute'), text: lines[0] }),
+            lines[1] ? A.h('div', { class: 'd', text: lines[1] }) : null
           ])
         ));
       });
@@ -423,15 +472,25 @@
       var todo = STEPS.filter(function (s) { return s.required && !s.done(rec); });
       var next = firstTodo(rec);
 
-      // 顶部状态：还差什么，一句话说清
+      // 顶部状态：没填完就说还差什么；填完了就直接给下一个蓝调窗口——
+      // 这时候"已经够用了"这句话没有信息量，几点去才有
+      var readyTxt = A.h('div', { class: 'txt' });
       view.appendChild(A.h('div', { class: 'ready ' + (todo.length ? 'todo' : 'ok') }, [
         A.h('div', { class: 'big', text: todo.length ? String(todo.length) : '✓' }),
-        A.h('div', { class: 'txt' }, todo.length
-          ? [A.h('b', { text: '还差 ' + todo.length + ' 项' }),
-             '缺 ' + todo.map(function (s) { return s.title; }).join('、') + '，补齐后才能算光线时间轴。']
-          : [A.h('b', { text: '这条记录已经够用了' }),
-             '坐标和天际线剖面都有了，可以拿来算日落和蓝调窗口。'])
+        readyTxt
       ]));
+      if (todo.length) {
+        A.append(readyTxt, [A.h('b', { text: '还差 ' + todo.length + ' 项' }),
+          '缺 ' + todo.map(function (x) { return x.title; }).join('、') + '，补齐后才能算光线时间轴。']);
+      } else {
+        A.append(readyTxt, [A.h('b', { text: '这条记录已经够用了' })]);
+        St.load().then(function (settings) {
+          if (ctx.isDisposed()) { return; }
+          var lines = describeWindow(nextWindow(rec, settings), rec.tz);
+          A.clear(readyTxt);
+          A.append(readyTxt, [A.h('b', { text: lines[0] }), lines[1] || '']);
+        });
+      }
 
       // 四步一览
       var list = A.h('div', { class: 'nav-list' });
@@ -463,7 +522,7 @@
             }
           }
         }, [
-          A.h('span', { class: 'num', text: '☀' }),
+          A.h('span', { class: 'num tool' }, A.icon('sunset', 17)),
           A.h('span', { class: 'body' }, [
             A.h('span', { class: 't', text: '光线时间轴' }),
             A.h('span', { class: 's', text: canCompute
@@ -481,7 +540,7 @@
             }
           }
         }, [
-          A.h('span', { class: 'num', text: '☁' }),
+          A.h('span', { class: 'num tool' }, A.icon('cloud', 17)),
           A.h('span', { class: 'body' }, [
             A.h('span', { class: 't', text: '七天云量' }),
             A.h('span', { class: 's', text: canCompute
@@ -613,19 +672,17 @@
       ctx.scheduleSave();
     });
 
-    var latIn = A.h('input', {
-      type: 'number', step: 'any', inputmode: 'decimal', placeholder: '纬度',
-      value: rec.lat === null ? '' : rec.lat
-    });
-    var lonIn = A.h('input', {
-      type: 'number', step: 'any', inputmode: 'decimal', placeholder: '经度',
-      value: rec.lon === null ? '' : rec.lon
-    });
+    // 经纬度都有正负号。iOS 的 decimal 小键盘上没有负号，
+    // 悉尼的纬度 −33.86 原来根本输不进去——这里带 ± 键。
+    var latNI = A.numInput({ value: rec.lat, placeholder: '例如 -33.86', signed: true,
+                             ariaLabel: '纬度', onInput: onManual });
+    var lonNI = A.numInput({ value: rec.lon, placeholder: '例如 151.21', signed: true,
+                             ariaLabel: '经度', onInput: onManual });
     var meta = A.h('div', { class: 'hint' });
 
     function syncMeta() {
       if (rec.lat === null || rec.lon === null) {
-        meta.textContent = '还没有坐标。南纬填负数、西经填负数。';
+        meta.textContent = '还没有坐标。南纬、西经是负数，用输入框右边的 ± 键切换。';
         return;
       }
       meta.textContent = rec.gpsSource === 'device'
@@ -634,19 +691,19 @@
     }
 
     function onManual() {
-      var la = parseFloat(latIn.value), lo = parseFloat(lonIn.value);
-      rec.lat = isFinite(la) && la >= -90 && la <= 90 ? la : null;
-      rec.lon = isFinite(lo) && lo >= -180 && lo <= 180 ? lo : null;
+      if (!latNI || !lonNI) { return; }      // 构造期间的首次回调
+      var la = latNI.value(), lo = lonNI.value();
+      rec.lat = la !== null && la >= -90 && la <= 90 ? la : null;
+      rec.lon = lo !== null && lo >= -180 && lo <= 180 ? lo : null;
       rec.gpsSource = (rec.lat !== null || rec.lon !== null) ? 'manual' : null;
       rec.gpsAccuracy = null;
       syncMeta();
       ctx.scheduleSave();
     }
-    latIn.addEventListener('input', onManual);
-    lonIn.addEventListener('input', onManual);
 
     // 主操作放在手动输入框**上面**：现场九成是点这个按钮，不是手打经纬度
-    var grabBtn = A.h('button', { class: 'btn primary block', type: 'button' }, '📍 一键获取当前位置');
+    var grabLabel = function () { return [A.icon('pin'), '一键获取当前位置']; };
+    var grabBtn = A.h('button', { class: 'btn primary block', type: 'button' }, grabLabel());
     grabBtn.addEventListener('click', function () {
       grabBtn.disabled = true;
       grabBtn.textContent = '定位中…';
@@ -655,8 +712,8 @@
         rec.lon = pos.coords.longitude;
         rec.gpsAccuracy = pos.coords.accuracy;
         rec.gpsSource = 'device';
-        latIn.value = rec.lat.toFixed(6);
-        lonIn.value = rec.lon.toFixed(6);
+        latNI.set(rec.lat.toFixed(6));
+        lonNI.set(rec.lon.toFixed(6));
         syncMeta();
         ctx.scheduleSave();
         A.toast('已获取位置，精度 ±' + Math.round(pos.coords.accuracy) + ' m');
@@ -664,7 +721,7 @@
         A.toast(e.message, 5000);
       }).then(function () {
         grabBtn.disabled = false;
-        grabBtn.textContent = '📍 一键获取当前位置';
+        A.clear(grabBtn); A.append(grabBtn, grabLabel());
       });
     });
 
@@ -697,8 +754,8 @@
       grabBtn,
       meta,
       A.h('div', { class: 'row', style: 'margin-top:16px' }, [
-        A.h('div', { class: 'field' }, [A.h('label', { text: '纬度' }), latIn]),
-        A.h('div', { class: 'field' }, [A.h('label', { text: '经度' }), lonIn])
+        A.h('div', { class: 'field' }, [A.h('label', { text: '纬度' }), latNI.node]),
+        A.h('div', { class: 'field' }, [A.h('label', { text: '经度' }), lonNI.node])
       ])
     ]));
 
@@ -727,10 +784,14 @@
       class: 'u', text: rec.heading === null ? '' : '° ' + A.compassName(rec.heading)
     });
 
-    var headIn = A.h('input', {
-      type: 'number', step: 'any', inputmode: 'decimal', min: 0, max: 360,
-      placeholder: '0–360，真北起算顺时针',
-      value: rec.heading === null ? '' : rec.heading
+    var headNI = A.numInput({
+      value: rec.heading, placeholder: '0–360，真北起算顺时针', ariaLabel: '方位角',
+      onInput: function (v) {
+        rec.heading = v === null ? null : H.norm360(v);
+        rec.headingSource = rec.heading === null ? null : 'manual';
+        syncBig();
+        ctx.scheduleSave();
+      }
     });
 
     // 光一个巨大的破折号看着像渲染残留，得有一句话说明它是什么
@@ -745,21 +806,10 @@
         : (rec.headingSource === 'compass' ? '来自罗盘读数' : '手动填写');
     }
 
-    headIn.addEventListener('input', function () {
-      var v = parseFloat(headIn.value);
-      rec.heading = isFinite(v) ? H.norm360(v) : null;
-      rec.headingSource = rec.heading === null ? null : 'manual';
-      syncBig();
-      ctx.scheduleSave();
-    });
-
-    var offIn = A.h('input', {
-      type: 'number', step: 'any', inputmode: 'decimal', value: rec.headingOffset || 0
-    });
-    offIn.addEventListener('input', function () {
-      var v = parseFloat(offIn.value);
-      rec.headingOffset = isFinite(v) ? v : 0;
-      ctx.scheduleSave();
+    // 罗盘校正可以是负的（比如磁偏角是西偏的地方）
+    var offNI = A.numInput({
+      value: rec.headingOffset || 0, signed: true, ariaLabel: '罗盘校正',
+      onInput: function (v) { rec.headingOffset = v === null ? 0 : v; ctx.scheduleSave(); }
     });
 
     syncBig();
@@ -770,10 +820,10 @@
       A.h('button', {
         class: 'btn primary block', type: 'button', style: 'margin-top:14px',
         on: { click: readCompass }
-      }, '🧭 读取罗盘'),
+      }, [A.icon('compass'), '读取罗盘']),
       A.h('div', { class: 'field', style: 'margin-top:18px' }, [
         A.h('label', null, ['或手动填方位角 ', A.h('span', { class: 'unit', text: '（度，真北起算）' })]),
-        headIn
+        headNI.node
       ])
     ]));
 
@@ -783,7 +833,7 @@
       A.h('div', { class: 'fold-body' }, [
         A.h('div', { class: 'field', style: 'margin-top:14px' }, [
           A.h('label', null, ['偏移量 ', A.h('span', { class: 'unit', text: '（度，加到罗盘读数上）' })]),
-          offIn
+          offNI.node
         ]),
         A.h('div', { class: 'hint' },
           'iOS 的 webkitCompassHeading 给的是真北，通常填 0。' +
@@ -831,7 +881,7 @@
         if (v !== 'use' || current === null) { return; }
         rec.heading = current;
         rec.headingSource = 'compass';
-        headIn.value = Math.round(current * 10) / 10;
+        headNI.set(Math.round(current * 10) / 10);
         syncBig();
         ctx.scheduleSave();
         A.toast('机位朝向记为 ' + Math.round(current) + '°');
@@ -857,7 +907,7 @@
     function showEmpty() {
       A.clear(holder);
       holder.appendChild(A.h('div', { class: 'photo-empty' }, [
-        A.h('div', { style: 'font-size:28px;opacity:.45', text: '📷' }),
+        A.h('div', { style: 'opacity:.55' }, A.icon('camera', 30)),
         A.h('div', { text: '点这里拍一张参考照片' })
       ]));
       holder.appendChild(fileIn);
