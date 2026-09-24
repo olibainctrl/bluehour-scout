@@ -23,6 +23,11 @@
 
   var NOW_TICK = 20000;    // 「现在」面板多久刷新一次
 
+  // 常用帧率和快门角度。172.8° 是 24fps 在 50Hz 市电（澳洲）下不闪的角度（1/50 秒），
+  // 144° 是 60Hz 下的（1/60 秒）。表里没有的走「自定义…」。
+  var FPS_PRESETS = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60, 100, 120];
+  var ANGLE_PRESETS = [45, 90, 144, 172.8, 180, 270, 360];
+
   function render(params, view) {
     deps();
     var rec = null, settings = null, calibInfo = null, result = null;
@@ -237,6 +242,55 @@
     //
     // setup 数改成步进器 − n +：1–30 的小整数不该弹键盘；而且改动只重算
     // 核算那一行，不整页重建（整页重建会把控件自己销毁、抢走焦点）。
+    //
+    // 帧率和快门角度存在这个勘景点上：它们是按镜头设计的，不是机器的属性。
+    // 改了要整页重算（T 档全变），所以用下拉，选完再重建，不存在抢焦点的问题。
+
+    function presetSelect(label, presets, current, fmt, onPick) {
+      var sel = A.h('select', { 'aria-label': label });
+      var list = presets.slice();
+      if (list.indexOf(current) < 0) {
+        list.push(current);
+        list.sort(function (a, b) { return a - b; });
+      }
+      list.forEach(function (v) {
+        sel.appendChild(A.h('option', { value: String(v) }, fmt(v)));
+      });
+      sel.appendChild(A.h('option', { value: 'custom' }, '自定义…'));
+      sel.value = String(current);
+      sel.addEventListener('change', function () {
+        if (sel.value === 'custom') {
+          sel.value = String(current);   // 先退回原值，取消了也不会停在「自定义…」上
+          onPick(null);
+        } else {
+          onPick(parseFloat(sel.value));
+        }
+      });
+      return sel;
+    }
+
+    // 1/48 秒；自定义到 1fps / 360° 这种慢门时显示「1 秒」而不是「1/1 秒」
+    function shutterText(t) {
+      if (!t) { return '—'; }
+      return t >= 1 ? (Math.round(t * 10) / 10) + ' 秒' : '1/' + Math.round(1 / t) + ' 秒';
+    }
+
+    function setShoot(key, value) {
+      if (rec[key] === value) { return; }
+      rec[key] = value;
+      rebuild();
+      R.save(rec).catch(function (e) {
+        if (!disposed) { A.toast('没存上：' + (e && e.message ? e.message : e), 4000); }
+      });
+    }
+
+    function customShoot(key, title, label, lo, hi, current) {
+      A.numberSheet({ title: title, label: label, value: current }).then(function (n) {
+        if (disposed || n === null || n === 'clear') { return; }
+        if (!(n >= lo && n <= hi)) { A.toast(title + '要在 ' + lo + '–' + hi + ' 之间'); return; }
+        setShoot(key, n);
+      });
+    }
 
     function buildShootParams() {
       var lensSel = A.h('select', { 'aria-label': '当前镜头' });
@@ -263,7 +317,7 @@
       if (settings.cameras && settings.cameras.length > 1) {
         var camSel = A.h('select', { 'aria-label': '当前机身' });
         settings.cameras.forEach(function (C, i) {
-          camSel.appendChild(A.h('option', { value: i }, C.name + ' · ' + C.fps + 'fps ' + C.shutterAngle + '°'));
+          camSel.appendChild(A.h('option', { value: i }, C.name));
         });
         camSel.value = String(settings.selectedCamera);
         camSel.addEventListener('change', function () {
@@ -277,6 +331,18 @@
         });
         camRow = A.h('div', { class: 'shoot-row' }, [A.h('span', { class: 'k', text: '机身' }), camSel]);
       }
+
+      var shoot = result.shoot;
+      var fpsSel = presetSelect('帧率', FPS_PRESETS, shoot.fps, String, function (v) {
+        if (v === null) { customShoot('fps', '帧率', '每秒帧数', 1, 1000, shoot.fps); }
+        else { setShoot('fps', v); }
+      });
+      var angSel = presetSelect('快门角度', ANGLE_PRESETS, shoot.shutterAngle,
+        function (v) { return v + '°'; },
+        function (v) {
+          if (v === null) { customShoot('shutterAngle', '快门角度', '度', 1, 360, shoot.shutterAngle); }
+          else { setShoot('shutterAngle', v); }
+        });
 
       var budgetOut = A.h('div', { class: 'budget' });
       function syncBudget() {
@@ -312,14 +378,19 @@
           A.h('span', { class: 'k', text: '镜头' }),
           lensSel
         ]),
+        A.h('div', { class: 'shoot-row pair' }, [
+          A.h('span', { class: 'k', text: '帧率' }),
+          fpsSel,
+          A.h('span', { class: 'k2', text: '快门' }),
+          angSel
+        ]),
         A.h('div', { class: 'shoot-row' }, [
           A.h('span', { class: 'k', text: 'setup' }),
           setupsSt.node,
           budgetOut
         ]),
         A.h('div', { class: 'hint', style: 'margin-top:4px' },
-          t ? '快门 1/' + Math.round(1 / t) + ' 秒 · 每个 setup 至少 ' + TL.MIN_PER_SETUP + ' 分钟'
-            : '帧率或快门角度无效，算不出 T 档')
+          '快门 ' + shutterText(t) + ' · 每个 setup 至少 ' + TL.MIN_PER_SETUP + ' 分钟')
       ]);
     }
 

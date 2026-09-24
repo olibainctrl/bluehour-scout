@@ -17,6 +17,8 @@
   'use strict';
 
   var MIN = 60000;
+  var DEFAULT_FPS = 24;         // 勘景点没填帧率时
+  var DEFAULT_SHUTTER = 180;    // 勘景点没填快门角度时
   var LEAD_MINUTES = 40;        // 日落前多少分钟开始
   var FALLBACK_TAIL = 120;      // 拿不到航海暮光时（高纬夏季）往后顺延多少分钟
   var MIN_PER_SETUP = 8;        // 每个 setup 低于这么多分钟就警告
@@ -76,7 +78,10 @@
     var tailFallback = ev.nauticalDusk === null;
     var endMs = tailFallback ? ev.sunset + FALLBACK_TAIL * MIN : ev.nauticalDusk;
 
-    var shutterSec = exp.shutterSeconds(cam.shutterAngle, cam.fps);
+    // 帧率和快门角度是每个镜头（shot）的创作选择，不是机器的属性，
+    // 所以从勘景记录上读，机器那边只提供原生 ISO
+    var shoot = shootParams(rec);
+    var shutterSec = exp.shutterSeconds(shoot.shutterAngle, shoot.fps);
     var isoLow = cam.isoLow > 0 ? cam.isoLow : 400;
     var isoHigh = cam.isoHigh > 0 ? cam.isoHigh : 3200;
     var lens = pickLens(settings);
@@ -186,6 +191,7 @@
       dateKey: opts.dateKey,
       tz: rec.tz,
       lens: lens,
+      shoot: shoot,
       shutterSec: shutterSec,
       isoLow: isoLow,
       isoHigh: isoHigh,
@@ -214,6 +220,25 @@
         budget: budget
       }
     };
+  }
+
+  /**
+   * 这个勘景点的拍摄参数。
+   *
+   * 帧率和快门角度是按镜头（shot）设计的——这个机位拍 50fps 升格、那个机位
+   * 拍 24fps——不是机器的特性，所以存在勘景记录上，在时间轴页直接调。
+   * 机器的配置里只留算法需要知道的能力：原生 ISO。
+   * 没填或填了无效值就按 24fps / 180°。
+   */
+  function shootParams(rec) {
+    return {
+      fps: inRange(rec && rec.fps, 1, 1000) ? rec.fps : DEFAULT_FPS,
+      shutterAngle: inRange(rec && rec.shutterAngle, 1, 360) ? rec.shutterAngle : DEFAULT_SHUTTER
+    };
+  }
+
+  function inRange(v, lo, hi) {
+    return typeof v === 'number' && v >= lo && v <= hi;   // NaN 在这里自然落空
   }
 
   /**
@@ -258,6 +283,9 @@
     MIN_PER_SETUP: MIN_PER_SETUP,
     build: build,
     budgetFor: budgetFor,
+    shootParams: shootParams,
+    DEFAULT_FPS: DEFAULT_FPS,
+    DEFAULT_SHUTTER: DEFAULT_SHUTTER,
     indexForTime: indexForTime,
     crossingBetween: crossingBetween,
     pickLens: pickLens

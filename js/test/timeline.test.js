@@ -35,7 +35,7 @@
 
   function settings(over) {
     var s = {
-      camera: { isoLow: 400, isoHigh: 3200, fps: 24, shutterAngle: 180 },
+      camera: { isoLow: 400, isoHigh: 3200 },
       lenses: [{ name: 'nFD 50 F1.4', maxAperture: 1.4 }],
       selectedLens: 0,
       blueRange: { upper: 0, lower: -9 },

@@ -52,6 +52,8 @@
       horizonSampledAt: null,
       notes: '',
       setups: null,        // 这个机位计划拍几个 setup（拍摄量核算用）
+      fps: null,           // 帧率；按镜头设计，不是机器属性。null 表示按 24fps
+      shutterAngle: null,  // 快门角度；null 表示按 180°
       hasPhoto: false,
       createdAt: now,
       updatedAt: now
@@ -84,6 +86,9 @@
     r.notes = typeof input.notes === 'string' ? input.notes.slice(0, 4000) : '';
     r.setups = clampNum(input.setups, 1, 99);
     if (r.setups !== null) { r.setups = Math.round(r.setups); }
+    // 范围和 core/timeline.js 的 shootParams 一致；超出范围记成 null（按 24fps / 180° 算）
+    r.fps = clampNum(input.fps, 1, 1000);
+    r.shutterAngle = clampNum(input.shutterAngle, 1, 360);
     r.hasPhoto = !!input.hasPhoto;
     r.createdAt = clampNum(input.createdAt, 0, 1e15) || Date.now();
     r.updatedAt = clampNum(input.updatedAt, 0, 1e15) || r.createdAt;

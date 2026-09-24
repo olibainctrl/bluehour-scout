@@ -176,8 +176,8 @@
 
     // -------------------------------------------------------- 摄影机
     //
-    // 和镜头、灯具一样是个列表，选一台当前在用的。帧率和快门角度跟着机身走——
-    // B 机升格拍 50fps 的时候切过去，时间轴的 T 档就按 1/100 秒算。
+    // 和镜头、灯具一样是个列表，选一台当前在用的。这里只记机器本身的能力
+    // （原生 ISO）；帧率和快门角度是按镜头设计的，在每个勘景点的时间轴页调。
 
     function isoText(C) {
       return (C.isoHigh && C.isoHigh !== C.isoLow)
@@ -187,33 +187,18 @@
 
     function cameraRow(C, i) {
       var cur = s.selectedCamera === i;
-      var t = E.shutterSeconds(C.shutterAngle, C.fps);
-      return row(C.name,
-        isoText(C) + ' · ' + C.fps + 'fps · ' + C.shutterAngle + '°' +
-        (t ? ' · 1/' + Math.round(1 / t) + 's' : ''),
+      return row(C.name, isoText(C),
         function () { editCamera(C, i); },
         cur ? A.h('span', { class: 'badge ok', text: '在用' }) : null);
     }
 
     function editCamera(C, i) {
       var isNew = !C;
-      // 新加的一台：帧率和快门角度先照着当前在用的那台填，通常是一样的
-      var base = C || s.camera || St.DEFAULT_CAMERA;
       var nameIn = A.h('input', { type: 'text', value: C ? C.name : '', maxlength: 80,
                                   placeholder: '例如 Sony FX3' });
       var isoLo = A.numInput({ value: C ? C.isoLow : null, integer: true, placeholder: '例如 800' });
       var isoHi = A.numInput({ value: (C && C.isoHigh !== C.isoLow) ? C.isoHigh : null,
                                integer: true, placeholder: '单原生可不填' });
-      var fps = A.numInput({ value: base.fps, onInput: preview });
-      var ang = A.numInput({ value: base.shutterAngle, onInput: preview });
-      var out = A.h('div', { class: 'hint' });
-      function preview() {
-        if (!fps || !ang) { return; }
-        var t = E.shutterSeconds(ang.value(), fps.value());
-        out.textContent = t ? '快门速度 1/' + Math.round(1 / t) + ' 秒，曝光换算用的就是这个。'
-                            : '帧率或快门角度无效。';
-      }
-      preview();
 
       var actions = [{ label: '取消', value: null, kind: 'ghost' }];
       if (!isNew) { actions.unshift({ label: '删除', value: 'del', kind: 'danger' }); }
@@ -221,17 +206,14 @@
 
       A.sheet({
         title: isNew ? '加一台摄影机' : '摄影机',
-        sub: '双原生 ISO 的机器两档都填；只有一个原生 ISO 的，高档留空就行。',
+        sub: '双原生 ISO 的机器两档都填；只有一个原生 ISO 的，高档留空就行。' +
+             '帧率和快门角度在每个勘景点的时间轴页设。',
         dismissValue: null,
         body: A.h('div', null, [
           field('机型', nameIn),
           A.h('div', { class: 'row' }, [
             field('原生 ISO 低档', isoLo.node), field('原生 ISO 高档', isoHi.node)
           ]),
-          A.h('div', { class: 'row' }, [
-            field('帧率（fps）', fps.node), field('快门角度（度）', ang.node)
-          ]),
-          out,
           (!isNew && s.selectedCamera !== i) ? A.h('button', {
             class: 'btn sm', type: 'button', style: 'margin-top:12px',
             on: { click: function () { s.selectedCamera = i; save(); A.toast('已设为当前在用'); } }
@@ -257,10 +239,7 @@
         var lo = isoLo.value();
         if (!(lo > 0)) { A.toast('原生 ISO 低档没填'); return; }
         var hi = isoHi.value();
-        var f = fps.value(), a = ang.value();
-        if (!(f > 0)) { A.toast('帧率无效'); return; }
-        if (!(a > 0 && a <= 360)) { A.toast('快门角度要在 1–360 之间'); return; }
-        var entry = { name: name, isoLow: lo, isoHigh: hi > 0 ? hi : lo, fps: f, shutterAngle: a };
+        var entry = { name: name, isoLow: lo, isoHigh: hi > 0 ? hi : lo };
         if (isNew) {
           s.cameras.push(entry);
           if (s.cameras.length === 1) { s.selectedCamera = 0; }

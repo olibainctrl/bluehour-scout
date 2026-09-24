@@ -16,16 +16,16 @@
   var KEY = 'project';
   var SCHEMA = 1;
 
+  // 机器只记算法需要知道的能力：原生 ISO。
+  // 帧率和快门角度是按镜头设计的创作选择，不是机器属性，存在每个勘景点上。
   var DEFAULT_CAMERA = {
     name: 'Blackmagic Pyxis 6K',
     isoLow: 400,          // 双原生 ISO 低档
-    isoHigh: 3200,        // 双原生 ISO 高档；单原生 ISO 的机器两档填一样
-    fps: 24,
-    shutterAngle: 180
+    isoHigh: 3200         // 双原生 ISO 高档；单原生 ISO 的机器两档一样
   };
 
   function copyCamera(c) {
-    return { name: c.name, isoLow: c.isoLow, isoHigh: c.isoHigh, fps: c.fps, shutterAngle: c.shutterAngle };
+    return { name: c.name, isoLow: c.isoLow, isoHigh: c.isoHigh };
   }
 
   function defaults() {
@@ -33,7 +33,6 @@
       key: KEY,
       schema: SCHEMA,
       // 摄影机和镜头、灯具一样是个列表，选一台当前在用的。
-      // 帧率和快门角度跟着机身走：B 机升格拍 50fps 的时候切过去就行。
       cameras: [copyCamera(DEFAULT_CAMERA)],
       selectedCamera: 0,
       camera: null,         // 派生字段：当前在用的那台，见 normalize()
@@ -134,7 +133,10 @@
     return d;
   }
 
-  /** 规整一台摄影机。单原生 ISO 的机器高档可以不填；两档写反了就对调。 */
+  /**
+   * 规整一台摄影机。单原生 ISO 的机器高档可以不填；两档写反了就对调。
+   * 旧数据里机器上带的 fps / shutterAngle 在这里丢掉——它们现在属于勘景点。
+   */
   function normCamera(c) {
     var lo = num(c.isoLow, DEFAULT_CAMERA.isoLow, 1, 1000000);
     var hi = num(c.isoHigh, null, 1, 1000000);
@@ -143,9 +145,7 @@
     return {
       name: (typeof c.name === 'string' && c.name.trim()) ? c.name.slice(0, 80) : DEFAULT_CAMERA.name,
       isoLow: lo,
-      isoHigh: hi,
-      fps: num(c.fps, DEFAULT_CAMERA.fps, 0.1, 1000),
-      shutterAngle: num(c.shutterAngle, DEFAULT_CAMERA.shutterAngle, 1, 360)
+      isoHigh: hi
     };
   }
 

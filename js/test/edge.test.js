@@ -32,7 +32,7 @@
 
   function settings(over) {
     var s = {
-      camera: { isoLow: 400, isoHigh: 3200, fps: 24, shutterAngle: 180 },
+      camera: { isoLow: 400, isoHigh: 3200 },
       lenses: [{ name: 'L', maxAperture: 1.4 }],
       selectedLens: 0,
       blueRange: { upper: 0, lower: -9 },
@@ -164,16 +164,25 @@
 
   T.suite('边界：退化的项目设置', function () {
 
-    T.test('帧率为 0 / 快门角度为 0 时不崩，T 档为空', function () {
-      [{ fps: 0 }, { shutterAngle: 0 }, { fps: null }, { shutterAngle: null }].forEach(function (o) {
-        var cam = { isoLow: 400, isoHigh: 3200, fps: 24, shutterAngle: 180 };
-        Object.keys(o).forEach(function (k) { cam[k] = o[k]; });
-        var r = build('2026-06-21', rec(), settings({ camera: cam }));
-        T.ok(r.ok, JSON.stringify(o) + ' 仍能构建');
-        T.isNull(r.shutterSec, '快门速度为 null');
-        T.isNull(r.rows[0].low.n, 'T 档为 null 而不是 NaN');
-        T.isNull(r.rows[0].auto, '自动选择为 null');
-        T.ok(isFinite(r.rows[0].ev100), 'EV100 仍然有效（不依赖快门）');
+    T.test('勘景点的帧率 / 快门角度没填或无效时按 24fps / 180° 算', function () {
+      [{ fps: 0 }, { shutterAngle: 0 }, { fps: null }, { shutterAngle: null }, {},
+       { fps: -24 }, { fps: 5000 }, { shutterAngle: 400 }, { fps: NaN },
+       { fps: '50' }, { shutterAngle: '90' }].forEach(function (o) {
+        var r = build('2026-06-21', rec(o));
+        var label = JSON.stringify(o, function (k, v) { return v !== v ? 'NaN' : v; });
+        T.ok(r.ok, label + ' 仍能构建');
+        T.near(r.shutterSec, 1 / 48, 1e-12, label + ' → 1/48 秒', 's');
+        T.ok(r.rows[0].low.n > 0 && isFinite(r.rows[0].low.n), 'T 档照常算出来');
+        T.ok(r.rows[0].auto, '自动选择照常给出');
+      });
+    });
+
+    T.test('快门速度无效时 T 档为空而不是 NaN（曝光层兜底）', function () {
+      [[0, 24], [180, 0], [null, 24], [180, null], [-90, 24]].forEach(function (p) {
+        var t = E.shutterSeconds(p[0], p[1]);
+        T.isNull(t, p[0] + '° / ' + p[1] + 'fps → null');
+        T.isNull(E.tStop(10, 400, t), '再往下算 T 档也是 null');
+        T.isNull(E.chooseISO(10, 400, 3200, t, 1.4), '自动选择也是 null');
       });
     });
 
@@ -276,7 +285,7 @@
 
     T.test('ISO 高低档写反了也不崩', function () {
       var r = build('2026-06-21', rec(), settings({
-        camera: { isoLow: 3200, isoHigh: 400, fps: 24, shutterAngle: 180 }
+        camera: { isoLow: 3200, isoHigh: 400 }
       }));
       T.ok(r.ok, '能构建');
       T.ok(isFinite(r.rows[0].low.n) && isFinite(r.rows[0].high.n), '两档都算得出');
@@ -287,13 +296,16 @@
 
   T.suite('边界：摄影机列表', function () {
 
-    T.test('旧数据（单个 camera 对象）自动迁成列表，已填参数不丢', function () {
+    T.test('旧数据（单个 camera 对象）自动迁成列表，机器能力不丢', function () {
       var old = { camera: { name: '旧机器', isoLow: 800, isoHigh: 12800, fps: 25, shutterAngle: 172.8 } };
       var s = Set.normalize(old);
       T.equal(s.cameras.length, 1, '迁成只有一台的列表');
       T.equal(s.cameras[0].name, '旧机器', '名字保留');
+      T.equal(s.cameras[0].isoLow, 800, '低原生 ISO 保留');
       T.equal(s.cameras[0].isoHigh, 12800, '高原生 ISO 保留');
-      T.equal(s.cameras[0].shutterAngle, 172.8, '快门角度保留');
+      // 帧率和快门角度现在属于勘景点，机器上的旧值丢掉
+      T.ok(!('fps' in s.cameras[0]) && !('shutterAngle' in s.cameras[0]),
+           '机器上不再带帧率和快门角度');
       T.equal(s.selectedCamera, 0, '选中第一台');
       T.equal(s.camera.name, '旧机器', '派生的 camera 指向它');
     });
@@ -301,20 +313,20 @@
     T.test('多台摄影机时 camera 派生为当前选中的那台', function () {
       var s = Set.normalize({
         cameras: [
-          { name: 'A 机', isoLow: 400, isoHigh: 3200, fps: 24, shutterAngle: 180 },
-          { name: 'B 机', isoLow: 800, isoHigh: 12800, fps: 50, shutterAngle: 180 }
+          { name: 'A 机', isoLow: 400, isoHigh: 3200 },
+          { name: 'B 机', isoLow: 800, isoHigh: 12800 }
         ],
         selectedCamera: 1
       });
       T.equal(s.camera.name, 'B 机', '派生出 B 机');
-      T.equal(s.camera.fps, 50, 'B 机的帧率');
+      T.equal(s.camera.isoHigh, 12800, 'B 机的高原生 ISO');
       // cameras 和旧的 camera 同时存在时以列表为准（camera 只是派生出来的副本）
       var s2 = Set.normalize({ cameras: s.cameras, selectedCamera: 0, camera: { name: '过期的副本' } });
       T.equal(s2.camera.name, 'A 机', '忽略存盘里过期的 camera 副本');
     });
 
     T.test('selectedCamera 越界时回到第一台', function () {
-      var cams = [{ name: 'A', isoLow: 400, isoHigh: 3200, fps: 24, shutterAngle: 180 }];
+      var cams = [{ name: 'A', isoLow: 400, isoHigh: 3200 }];
       [5, -1, 'x', null, undefined].forEach(function (v) {
         T.equal(Set.normalize({ cameras: cams, selectedCamera: v }).selectedCamera, 0,
                 'selectedCamera=' + v + ' → 0');
@@ -325,7 +337,8 @@
       [[], [null, 3, 'x'], null].forEach(function (list, i) {
         var s = Set.normalize({ cameras: list });
         T.equal(s.cameras.length, 1, '第 ' + i + ' 种情况：至少有一台');
-        T.ok(s.camera && s.camera.fps > 0, '派生的 camera 可用');
+        T.ok(s.camera && s.camera.isoLow > 0 && s.camera.isoHigh >= s.camera.isoLow,
+             '派生的 camera 可用');
       });
     });
 
@@ -347,20 +360,28 @@
       T.ok(!r2.switched, '高档为 null 时同样不切');
     });
 
-    T.test('时间轴按选中那台的帧率算快门', function () {
-      var s = Set.normalize({
-        cameras: [
-          { name: 'A 机', isoLow: 400, isoHigh: 3200, fps: 24, shutterAngle: 180 },
-          { name: 'B 机', isoLow: 400, isoHigh: 3200, fps: 50, shutterAngle: 180 }
-        ],
-        selectedCamera: 1
-      });
-      var r = build('2026-06-21', rec(), s);
-      T.near(r.shutterSec, 1 / 100, 1e-12, '50fps / 180° → 1/100 秒', 's');
-      var a = build('2026-06-21', rec(), Set.normalize({ cameras: s.cameras, selectedCamera: 0 }));
-      T.ok(a.rows[60].low.n > r.rows[60].low.n,
-           '同一分钟 B 机快门更短，需要的光圈更大（T 值更小）：A ' + a.rows[60].low.n.toFixed(2) +
-           ' / B ' + r.rows[60].low.n.toFixed(2));
+    T.test('时间轴按勘景点的帧率和快门角度算快门', function () {
+      var a = build('2026-06-21', rec({ fps: 24, shutterAngle: 180 }));
+      var b = build('2026-06-21', rec({ fps: 50, shutterAngle: 180 }));
+      T.near(a.shutterSec, 1 / 48, 1e-12, '24fps / 180° → 1/48 秒', 's');
+      T.near(b.shutterSec, 1 / 100, 1e-12, '50fps / 180° → 1/100 秒', 's');
+      T.equal(b.shoot.fps, 50, '结果里带着用的帧率');
+      T.ok(a.rows[60].low.n > b.rows[60].low.n,
+           '同一分钟 50fps 快门更短，需要的光圈更大（T 值更小）：24fps ' + a.rows[60].low.n.toFixed(2) +
+           ' / 50fps ' + b.rows[60].low.n.toFixed(2));
+      var flick = build('2026-06-21', rec({ fps: 24, shutterAngle: 172.8 }));
+      T.near(flick.shutterSec, 1 / 50, 1e-12, '24fps / 172.8° → 1/50 秒（50Hz 不闪）', 's');
+    });
+
+    T.test('换机器只换原生 ISO，不动快门', function () {
+      var cams = [{ name: 'A 机', isoLow: 400, isoHigh: 3200 },
+                  { name: 'B 机', isoLow: 800, isoHigh: 12800 }];
+      var r = rec({ fps: 25, shutterAngle: 180 });
+      var a = build('2026-06-21', r, Set.normalize({ cameras: cams, selectedCamera: 0 }));
+      var b = build('2026-06-21', r, Set.normalize({ cameras: cams, selectedCamera: 1 }));
+      T.equal(a.shutterSec, b.shutterSec, '两台机器快门一样：都是勘景点上的 25fps / 180°');
+      T.equal(a.isoHigh, 3200, 'A 机高档 3200');
+      T.equal(b.isoHigh, 12800, 'B 机高档 12800');
     });
 
     T.test('镜头删光之后就是空列表，不会冒出默认镜头', function () {
@@ -457,15 +478,16 @@
       var junk = [
         null, undefined, 'x', 42, [],
         { camera: 'no', lenses: 'no', lights: 'no', blueRange: 'no' },
-        { camera: { fps: -1, shutterAngle: 9999, isoLow: 'x' },
+        { camera: { fps: -1, shutterAngle: 9999, isoLow: 'x', isoHigh: -5 },
           lenses: [{ name: '' }, { maxAperture: 3 }, null, 5],
           lights: [{ name: 'a', lux: 'x', distance: -1 }],
           blueRange: { upper: 'a', lower: 999 }, selectedLens: 'x', setups: 'x' }
       ];
       junk.forEach(function (j, i) {
         var s = Set.normalize(j);
-        T.ok(s.camera.fps > 0, '第 ' + i + ' 个：帧率为正');
-        T.ok(s.camera.shutterAngle > 0 && s.camera.shutterAngle <= 360, '快门角度合法');
+        T.ok(s.camera.isoLow > 0, '第 ' + i + ' 个：原生 ISO 为正');
+        T.ok(s.camera.isoHigh >= s.camera.isoLow, '高档不低于低档');
+        T.ok(!('fps' in s.camera), '机器上不带帧率');
         T.ok(Array.isArray(s.lenses), '镜头是数组');
         T.ok(Array.isArray(s.lights), '灯具是数组');
         T.ok(isFinite(s.blueRange.upper) && isFinite(s.blueRange.lower), '蓝调区间是数值');
@@ -487,6 +509,25 @@
       T.equal(H.normalize([-89.9])[0], -89.9, '−89.9° 有效');
       T.equal(H.normalize([0])[0], 0, '0° 有效（不能被 falsy 误伤）');
       T.equal(H.normalize(['0'])[0], 0, '字符串 "0" 有效');
+    });
+
+    T.test('勘景点的帧率和快门角度：合法的保留，其余记成 null', function () {
+      var ok = Rec.normalize({ fps: 23.976, shutterAngle: 172.8 });
+      T.equal(ok.fps, 23.976, '23.976 保留');
+      T.equal(ok.shutterAngle, 172.8, '172.8° 保留');
+      T.equal(Rec.normalize({ fps: '50', shutterAngle: '90' }).fps, 50, '字符串数字照收');
+      [0, -1, 1001, 'x', NaN, Infinity, null, undefined, {}].forEach(function (v) {
+        T.isNull(Rec.normalize({ fps: v }).fps, '帧率 ' + String(v) + ' → null');
+      });
+      [0, 361, -90, 'x', null].forEach(function (v) {
+        T.isNull(Rec.normalize({ shutterAngle: v }).shutterAngle, '快门角度 ' + String(v) + ' → null');
+      });
+      var fresh = Rec.create({ name: '新点' });
+      T.isNull(fresh.fps, '新记录不预设帧率（按 24fps 算）');
+      T.isNull(fresh.shutterAngle, '新记录不预设快门角度（按 180° 算）');
+      var p = TL.shootParams(fresh);
+      T.equal(p.fps, 24, '没填 → 24fps');
+      T.equal(p.shutterAngle, 180, '没填 → 180°');
     });
 
     T.test('方位角 360 被归到 0', function () {
