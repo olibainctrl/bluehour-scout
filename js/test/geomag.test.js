@@ -146,6 +146,12 @@
       T.test(k + ' 分量与官方值一致（≤ 0.1 nT）', function () {
         var w = worst(k, 0.1);
         T.ok(w.ok, '100 组里最大偏差 ' + w.max.toExponential(2) + ' nT' + where(w.at));
+        // 声明页写的是「都不到 N nT」
+        var CL = BH.Guide && BH.Guide.CLAIMS;
+        if (CL) {
+          T.ok(w.max < CL.wmmMaxNT, '声明页写不到 ' + CL.wmmMaxNT + ' nT');
+          T.equal(OFFICIAL.length, CL.wmmPoints, '声明页写的测试值组数');
+        }
       });
     });
 

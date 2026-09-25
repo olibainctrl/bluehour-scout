@@ -156,6 +156,13 @@
         T.ok(Math.abs(d) <= 30, f[0] + ' 太阳正午误差 ' + fmtDelta(d));
       }
       T.ok(true, '最大误差 ' + fmtDelta(worst));
+      // 声明页写了「太阳正午最大差 N 秒」，算法一变这里就会提醒去改说明
+      var CL = BH.Guide && BH.Guide.CLAIMS;
+      if (CL) {
+        T.equal(NOAA.length, CL.noaaDates, '声明页写的日期数');
+        T.ok(Math.round(Math.abs(worst)) <= CL.noaaNoonMaxSec,
+             '声明页写正午最大差 ' + CL.noaaNoonMaxSec + ' 秒，实际 ' + fmtDelta(worst));
+      }
     });
   });
 
@@ -185,6 +192,24 @@
         });
       }(LABELS[li][0], LABELS[li][1], LABELS[li][2]));
     }
+
+    T.test('声明页引用的总数和最大差', function () {
+      var CL = BH.Guide && BH.Guide.CLAIMS;
+      if (!CL) { T.ok(true, '没加载说明页，跳过'); return; }
+      var worst = 0, n = 0;
+      LABELS.forEach(function (L) {
+        GA.forEach(function (f) {
+          var ev = eventsForDate(f[0], GA_LAT, GA_LON, SYD_TZ);
+          var d = Math.abs(deltaSec(ev[L[1]], f[L[0]], SYD_TZ));
+          n++;
+          if (d > worst) { worst = d; }
+        });
+      });
+      T.equal(GA.length, CL.gaDates, '声明页写的日期数');
+      T.equal(n, CL.gaEvents, '声明页写的时刻数');
+      T.ok(Math.round(worst) <= CL.gaMaxSec,
+           '声明页写最大差 ' + CL.gaMaxSec + ' 秒，实际 ' + Math.round(worst) + ' 秒');
+    });
   });
 
   T.suite('算法内部一致性：2026 全年逐日扫描（悉尼）', function () {

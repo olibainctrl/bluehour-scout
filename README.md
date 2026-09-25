@@ -53,8 +53,13 @@
 │   │   ├── app.js            DOM 工具、路由、单色图标、数字输入、步进器、抽屉
 │   │   ├── compass.js        方向传感器 → 方位角 + 仰角（iOS 的坑都在这里）
 │   │   ├── viewfinder.js     相机取景器：后摄预览 + 中心准星
-│   ├── horizon-ui.js     剖面采集界面：取景器、罗盘玫瑰、展开图、36 格手填
-│   │   └── scout.js          记录列表与编辑页
+│   │   ├── horizon-ui.js     剖面采集界面：取景器、罗盘玫瑰、展开图、36 格手填
+│   │   ├── scout.js          记录列表、概览、四步编辑页、旧记录的磁偏角提示
+│   │   ├── timeline-ui.js    光线时间轴页
+│   │   ├── settings-ui.js    项目设置页
+│   │   ├── weather-ui.js     七天云量页
+│   │   ├── guide-ui.js       使用方法、声明（计算方式与精度）两页
+│   │   └── compass-sim.js    罗盘模拟器，只在网址带 ?sim=1 时启用
 │   └── test/
 │       ├── harness.js        极简测试框架
 │       ├── solar.test.js     太阳算法与时区
@@ -69,12 +74,13 @@
 │       ├── edge.test.js         边界条件专项：夏令时、跨年、闰日、极端坐标、
 │       │                        退化设置、脏数据、全年 NaN 泄漏扫描
 │       ├── theme.test.js        两套主题的对比度、组件里不许写死色值
-│       └── ui.test.js           数字输入框（负号）、步进器
+│       ├── ui.test.js           数字输入框（负号）、步进器
+│       └── guide.test.js        灯泡跳转、声明页引用的数和代码一致
 ├── .claude/launch.json       本地静态服务配置（开发用）
 └── README.md
 ```
 
-测试目前共 **1292 条断言 / 54 个套件**（浏览器里跑；命令行因为没有 DOM 是 1181 条），
+测试目前共 **1347 条断言 / 57 个套件**（浏览器里跑；命令行因为没有 DOM 是 1226 条），
 覆盖太阳位置、时区、剖面、罗盘几何、界面几何、取景器、曝光模型、光线时间轴、
 云量决策、两套主题的对比度、界面组件，外加一套专打边界条件的 `edge.test.js`。
 
@@ -106,7 +112,7 @@ cd "/Users/gongzihan/Iphone Tool" && python3 -m http.server 8765 --bind 127.0.0.
 macOS 自带 JavaScriptCore，可以直接跑，不需要装 Node：
 
 ```bash
-cd "/Users/gongzihan/Iphone Tool" && cat js/core/*.js js/data/records.js js/data/settings.js js/data/weather.js js/ui/theme.js js/ui/compass.js js/ui/app.js js/ui/viewfinder.js js/ui/horizon-ui.js js/test/harness.js js/test/*.test.js > /tmp/bh-tests.js && echo 'BH.Test.textReport(BH.Test.run());' >> /tmp/bh-tests.js && osascript -l JavaScript /tmp/bh-tests.js
+cd "/Users/gongzihan/Iphone Tool" && cat js/core/*.js js/data/records.js js/data/settings.js js/data/weather.js js/ui/theme.js js/ui/compass.js js/ui/app.js js/ui/viewfinder.js js/ui/horizon-ui.js js/ui/guide-ui.js js/test/harness.js js/test/*.test.js > /tmp/bh-tests.js && echo 'BH.Test.textReport(BH.Test.run());' >> /tmp/bh-tests.js && osascript -l JavaScript /tmp/bh-tests.js
 ```
 
 测试文件用通配符，以后加了新的 `*.test.js` 不用改命令；但被测模块要逐个列出，
@@ -115,7 +121,7 @@ cd "/Users/gongzihan/Iphone Tool" && cat js/core/*.js js/data/records.js js/data
 否则它会静默报全绿。
 
 命令行没有 DOM，需要真实布局的测试（准星几何、主题对比度、输入组件）会跳过，
-所以命令行是 1181 条，浏览器里是 1292 条。
+所以命令行是 1226 条，浏览器里是 1347 条。
 
 ---
 
@@ -496,8 +502,9 @@ T 档——加粗成琥珀色。另外在发生的那一分钟插一行标记：
 
 ## 日 / 夜主题与设置入口
 
-每一页右上角有两个按钮：**设置**（滑块图标）和**日/夜切换**。设置页自己那里
-不放设置按钮。从任何一页点进设置，左上角返回就回到原来那一页。
+每一页右上角有三个按钮：**使用方法**（灯泡）、**设置**（滑块图标）和**日/夜切换**。
+设置页自己那里不放设置按钮，两个说明页不放灯泡。从任何一页点进去，
+左上角返回就回到原来那一页。
 
 日/夜在项目设置最上面也能切。默认夜间。
 
@@ -520,6 +527,34 @@ T 档——加粗成琥珀色。另外在发生的那一分钟插一行标记：
 - **iOS 状态栏**：`apple-mobile-web-app-status-bar-style` 用的是 `black-translucent`
   （夜间最好），但它只在启动时读、字永远是白的。日间的浅色顶栏会让时间和电量
   直接看不见，所以日间把刘海安全区那一条单独涂深。没有刘海的设备上这条自动消失。
+
+---
+
+## 使用方法与声明
+
+右上角的灯泡进**使用方法**（`#/guide`）：按现场的先后顺序写成 12 步——装到主屏幕、
+填项目设置、四步勘景、时间轴、云量、拍摄当天看「现在」和记实测、备份——外加几条小贴士。
+从哪一页点灯泡，就直接滚到哪一步并标上「当前页面」（`Guide.sectionFor()` 把路由对到步骤）。
+
+使用方法最后一行进**声明**（`#/statement`）：先一段总声明（结果是估算，用来规划，
+不代替测光表和监视器），再一张精度一览表，然后每个算法一节，可以折叠：
+太阳位置与日落、蓝调窗口、地平线剖面与真实日落、罗盘与磁偏角、曝光与 T 档、
+实测校准、色温、补光交叉点、拍摄量核算、七天云量、数据与隐私。每节写清楚怎么算、
+拿什么验证过、测到多大误差、算法管不到的误差从哪来；「测得」和「估计」分开标。
+最底下链到测试页，可以看逐条比对。
+
+**说明不会和代码悄悄对不上**，靠两条：
+
+- 锚点表、阈值、区间、默认帧率这些直接从代码常量读（`Exposure.EV_ANCHORS`、
+  `Cloud.LOW_GOOD`、`Timeline.MIN_PER_SETUP`……），页面里不抄一份。
+- 引用的「测得 / 算得」数字集中在 `Guide.CLAIMS`，有测试逐条核对代码的实际表现：
+  NOAA 正午最大差、GA 42 个时刻最大差、WMM 偏差、悉尼全年蓝调窗口时长、
+  太阳落到天际线高度时的下降速度、窗口里 EV 每分钟的变化。算法一改、误差一变，测试就红。
+
+这条检查第一次跑就抓到了我自己写错的一个数：原来写「天际线差 1° ≈ 4–5 分钟」，
+是在日落那一刻（视高度角 −0.44°）量的速度。但 NOAA 的折射模型在地平线以下变化很快，
+那里的下降速度偏大，和遮挡无关。在常见天际线的高度（+0.5° 到 +10°）上量，
+太阳每分钟只降 0.16–0.21°，**1° 对应 5–6 分钟**。
 
 ---
 

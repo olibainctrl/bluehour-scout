@@ -535,6 +535,60 @@ details.fold > summary::after{content:"▾";margin-left:auto;color:var(--ink-fai
 details.fold[open] > summary::after{content:"▴"}
 details.fold > .fold-body{padding:0 14px 14px;border-top:1px solid var(--line-soft)}
 
+/* ------------------------------------------------ 使用方法 / 声明 */
+
+/* 使用方法：带编号的步骤。当前页面对应的那一步只把编号圈换成琥珀色、加一个标签，
+   不整块提亮——黄昏看的时候不能有亮块 */
+.card.guide{padding:2px 14px}
+.g-step{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--line-soft)}
+.g-step:last-child{border-bottom:none}
+.g-n{
+  flex:none;width:26px;height:26px;border-radius:50%;margin-top:1px;
+  border:1px solid var(--line);background:var(--bg-sunk);
+  display:flex;align-items:center;justify-content:center;
+  font:600 12px/1 var(--mono);color:var(--ink-faint);
+}
+.g-step.here .g-n{color:var(--amber);border-color:var(--amber-edge);background:var(--amber-wash)}
+.g-body{flex:1;min-width:0}
+.g-t{font-size:15px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.g-body p,.card.guide.tips p{font-size:14px;line-height:1.7;color:var(--ink-dim);margin:6px 0 0}
+.card.guide.tips{padding:4px 14px 14px}
+.card.guide.tips p{margin-top:10px}
+.g-body b,.card.guide.tips b,.doc-body b,.doc-lead b{color:var(--ink);font-weight:600}
+a.nav-row{text-decoration:none}
+
+/* 声明 */
+.doc-lead p{font-size:14px;line-height:1.75;color:var(--ink-dim);margin:0}
+.doc-lead p + p{margin-top:8px}
+details.fold.doc{background:var(--bg-raise);margin-top:10px}
+details.fold.doc > summary{color:var(--ink)}
+details.fold.doc > summary::after{margin-left:6px}
+.doc-title{flex:1;min-width:0;font-weight:500}
+.doc-tag{flex:none;max-width:48%;font-size:12px;color:var(--ink-faint);text-align:right;line-height:1.4}
+.doc-body{font-size:14px;line-height:1.75;color:var(--ink-dim)}
+.doc-body p{margin:12px 0 0}
+.doc-body h3{font-size:13px;font-weight:600;color:var(--ink);margin:18px 0 4px}
+.doc-body ul,.doc-body ol{margin:8px 0 0;padding-left:20px}
+.doc-body li{margin:5px 0}
+.doc-body .card.doc-inner{margin:10px 0 0;background:var(--bg-sunk)}
+.formula{
+  margin:10px 0 0;padding:9px 12px;border:1px solid var(--line);border-radius:9px;
+  background:var(--bg-sunk);color:var(--ink);font:13px/1.9 var(--mono);
+  overflow-x:auto;-webkit-overflow-scrolling:touch;
+}
+.formula > div{padding-left:1.5em;text-indent:-1.5em}   /* 折行时续行缩进 */
+table.doc-tbl{width:100%;border-collapse:collapse;font-size:12.5px;line-height:1.55}
+table.doc-tbl th{
+  background:var(--bg-sunk);color:var(--ink-faint);font-weight:600;font-size:11px;
+  text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);
+}
+table.doc-tbl td{
+  text-align:left;vertical-align:top;padding:9px 10px;
+  border-bottom:1px solid var(--line-soft);color:var(--ink-dim);
+}
+table.doc-tbl td:first-child{color:var(--ink);font-weight:500;min-width:5.5em}
+table.doc-tbl tr:last-child td{border-bottom:none}
+
 /* 概览页顶部的状态条 */
 .ready{
   display:flex;align-items:center;gap:13px;

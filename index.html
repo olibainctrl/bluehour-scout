@@ -62,6 +62,7 @@
 <script src="js/ui/timeline-ui.js"></script>
 <script src="js/ui/settings-ui.js"></script>
 <script src="js/ui/weather-ui.js"></script>
+<script src="js/ui/guide-ui.js"></script>
 <!-- 开发用：只在网址带 ?sim=1 时启用 -->
 <script src="js/ui/compass-sim.js"></script>
 
@@ -98,6 +99,9 @@
   A.route('/rec/:id/timeline', BH.TimelineUI.render);
   A.route('/rec/:id/weather', BH.WeatherUI.render);
   A.route('/settings', BH.SettingsUI.render);
+  A.route('/guide', BH.Guide.renderGuide);
+  A.route('/guide/:section', BH.Guide.renderGuide);
+  A.route('/statement', BH.Guide.renderStatement);
 
   A.start({
     topbar: document.getElementById('topbar'),

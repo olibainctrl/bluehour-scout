@@ -87,6 +87,8 @@
     sunset: '<path d="M3 17.5h18M6.5 17.5a5.5 5.5 0 0 1 11 0M12 5v2.6M5 9.3l1.8 1.8M19 9.3l-1.8 1.8M3.5 21h17"/>',
     back: '<path d="M14.8 5.2 8 12l6.8 6.8"/>',
     sliders: '<path d="M4 8h8.6M17.4 8H20M4 16h2.6M11.4 16H20"/><circle cx="15" cy="8" r="2.4"/><circle cx="9" cy="16" r="2.4"/>',
+    bulb: '<path d="M9.4 18v-1.3c0-.8-.4-1.5-1-2A6.2 6.2 0 1 1 15.6 14.7c-.6.5-1 1.2-1 2V18z"/>' +
+          '<path d="M10.2 21h3.6"/>',
     plus: '<path d="M12 5.5v13M5.5 12h13"/>',
     minus: '<path d="M5.5 12h13"/>'
   };
@@ -419,6 +421,7 @@
   }
 
   function setTop(opts) {
+    if (!topbarEl) { return; }          // 测试里单独渲染页面时没有顶栏
     clear(topbarEl);
     if (opts.back) {
       topbarEl.appendChild(h('button', {
@@ -431,10 +434,26 @@
       opts.sub ? h('span', { class: 'sub', text: opts.sub }) : null
     ]));
     var acts = (opts.actions || []).slice();
-    // 设置和日/夜切换每一页都有；只在设置页自己那里不放设置按钮
-    if (currentPath() !== '/settings') { acts.push(settingsButton()); }
+    // 使用方法、设置、日/夜切换每一页都有；说明页自己不放灯泡，设置页自己不放设置
+    var path = currentPath();
+    if (!/^\/(guide|statement)(\/|$)/.test(path)) { acts.push(guideButton(path)); }
+    if (path !== '/settings') { acts.push(settingsButton()); }
     acts.push(themeButton());
     topbarEl.appendChild(h('div', { class: 'actions' }, acts));
+  }
+
+  /** 灯泡：使用方法。带上当前页面，说明页直接滚到对应的那一步。 */
+  function guideButton(path) {
+    return h('button', {
+      class: 'theme-btn', type: 'button', 'aria-label': '使用方法', title: '使用方法',
+      on: {
+        click: function () {
+          var G = root.BH.Guide;
+          var sec = G && G.sectionFor ? G.sectionFor(path) : null;
+          go('/guide' + (sec ? '/' + sec : ''));
+        }
+      }
+    }, icon('bulb', 19));
   }
 
   function settingsButton() {
